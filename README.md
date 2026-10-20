@@ -116,11 +116,6 @@ Every pull request runs 950+ tests with a 90% coverage floor,
 mypy, Ruff, Bandit, zizmor for workflows, CodeQL, dependency audits on
 hash pinned lockfiles and a secret scan of the full history.
 
-## Next up
-
-- Reading Gem hosted job boards, which render empty today
-- Checking the most wanted companies several times a day instead of once each morning
-
 ## More
 
 - [Reference](docs/reference.md): every setting, input file and command
