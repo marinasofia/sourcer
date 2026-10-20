@@ -1,7 +1,7 @@
 # Sourcer
 
 Sourcer finds early career roles worth applying to. It reads company job boards
-every morning, sets aside what cannot fit with plain rules, and has Claude judge
+every morning, sets aside what cannot fit with plain rules and has Claude judge
 the rest against the candidate's own work history, quoting the evidence for
 every score.
 
@@ -15,14 +15,14 @@ every score.
 
 Job boards answer "what is open", not "what should I apply to today". A
 student searching by hand checks a few dozen companies, misses roles that
-close in days, and spends time on postings that quietly require three years of
+close in days and spends time on postings that quietly require three years of
 experience or a citizenship the candidate does not have. Sourcer covers
 thousands of companies and puts a short, explained list in front of the
 candidate each morning.
 
 ## What a run looks like
 
-From the morning run on October 20, 2026:
+From the morning run on October 20, 2026.
 
 | | |
 |---|---|
@@ -48,39 +48,39 @@ flowchart LR
 ```
 
 1. **Discover.** New companies come from YC, Built In NYC, Hacker News "Who is
-   hiring", SimplifyJobs, and VC portfolio boards. A probe finds which job board
+   hiring", SimplifyJobs and VC portfolio boards. A probe finds which job board
    each one uses.
 2. **Collect.** Greenhouse, Lever, Ashby, Workable, SmartRecruiters, Rippling,
-   Workday, Eightfold, and Oracle Recruiting are read through their APIs.
+   Workday, Eightfold and Oracle Recruiting are read through their APIs.
    Careers pages that only render with scripts are read in a sandboxed headless
-   browser, and one that links a known board is read through that board instead.
+   browser and one that links a known board is read through that board instead.
 3. **Rules.** Location, seniority, years required, start dates, graduation
-   windows, and explicit work authorization limits. Unclear dates are flagged,
+   windows and explicit work authorization limits. Unclear dates are flagged,
    never guessed.
 4. **Judge.** Claude reads the posting and the candidate's approved facts from
-   past jobs and projects. It answers fixed checks: is this the kind of work the
-   candidate has done, and is each real requirement covered, with a quote from
-   the candidate's evidence. Code turns those answers into the score.
-5. **Rank and learn.** Freshness, deadlines, and the score order the list.
+   past jobs and projects. It answers fixed checks. Is this the kind of work the
+   candidate has done and is each real requirement covered, with a quote from
+   the candidate's evidence? Code turns those answers into the score.
+5. **Rank and learn.** Freshness, deadlines and the score order the list.
    Thumbs up or down move a role by at most five points and never override a
    rule.
 
 ## Decisions worth knowing
 
 - **Rules before the model.** Most postings fail on facts a regex can read, so
-  95% of them never cost a model call, and the ones that do get a careful read.
+  95% of them never cost a model call and the ones that do get a careful read.
 - **The model answers checks; code computes the number.** A score from a
   prompt drifts and cannot be audited. Here the model says which requirements
-  are covered and quotes where, and fixed arithmetic makes the score. The
-  scale was calibrated on 85 labelled postings: a score of 75 keeps 80% of the
-  wanted roles at 65% precision, and 85 reaches 85% precision.
+  are covered and quotes where and fixed arithmetic makes the score. The
+  scale was calibrated on 85 labelled postings. A score of 75 keeps 80% of the
+  wanted roles at 65% precision and 85 reaches 85% precision.
 - **Never drop a live role for its age.** A role still on its company's board is
   still open. Age lowers its rank instead of removing it.
 - **Feedback is bounded.** Preferences learned from thumbs adjust the order a
   little and never bypass a rule, so a few clicks cannot hide good roles.
 - **Everything from outside is untrusted.** Every fetched URL goes through one
-  guard: public HTTPS only, each redirect checked, the connection pinned to the
-  address that was checked, replies capped in size and time. Posting text is
+  guard. It allows public HTTPS only, checks each redirect, pins the connection
+  to the address it checked and caps replies in size and time. Posting text is
   fenced as data in every prompt. These came out of a penetration test of the
   project before it was published; [SECURITY.md](SECURITY.md) has the details.
 
@@ -99,22 +99,22 @@ SOURCER_COMPANIES=tests/fixtures/companies-empty.json SOURCER_SIMPLIFY=0 SOURCER
 ```
 
 For a live run, copy `profile.example.json` to `profile.json`, set
-`ANTHROPIC_API_KEY`, and run `.venv/bin/python -m sourcer.main --cost-cap 0.05`.
+`ANTHROPIC_API_KEY` and run `.venv/bin/python -m sourcer.main --cost-cap 0.05`.
 Live runs contact job boards and make paid model calls.
 
 ## Built with
 
 Python, LangGraph, the Claude API (or the Claude Code CLI), Playwright, SQLite
-or Snowflake, and an MCP server and HTTP service for scoring a single posting.
+or Snowflake and an MCP server and HTTP service for scoring a single posting.
 It deploys to GitHub Actions, Docker, AWS Lambda, or Kubernetes.
 
-Quality gates on every pull request: 950+ tests with a 90% coverage floor,
+Every pull request runs 950+ tests with a 90% coverage floor,
 mypy, Ruff, Bandit, zizmor for workflows, CodeQL, dependency audits on
-hash-pinned lockfiles, and a secret scan of the full history.
+hash pinned lockfiles and a secret scan of the full history.
 
 ## More
 
-- [Reference](docs/reference.md): every setting, input file, and command
+- [Reference](docs/reference.md): every setting, input file and command
 - [Operations](docs/operations.md): running, debugging, reading the run log
 - [Deployment](docs/deployment.md): Docker, Actions, Lambda, Kubernetes, Snowflake
 - [Model card](docs/model-card.md): how the model is used and where it fails
