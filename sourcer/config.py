@@ -265,7 +265,10 @@ _BACHELOR_RE = re.compile(r"\b(bachelor'?s|b\.s\.|b\.a\.|undergraduate|or equiva
 _DEGREE_REQUIRED_RE = re.compile(r"\b(required|must have|requires?)\b", re.I)
 _CLEARANCE_RE = re.compile(
     r"\b(?:active|current)\s+(?:secret|top secret|ts/sci|ts|security)\b[^.]{0,20}\bclearance\b"
-    r"|\b(?:secret|top secret|ts/sci|security) clearance (?:is )?required\b",
+    r"|\b(?:secret|top secret|ts/sci|security) clearance (?:is )?required\b"
+    # "Active Full Scope Poly Level clearance", "TS/SCI with CI poly"
+    r"|\b(?:active|current)\s+(?:full[ -]scope|ci|counterintelligence)\s+poly(?:graph)?\b"
+    r"[^.\n]{0,20}\bclearance\b|\b(?:full[ -]scope|ci) poly(?:graph)?\b",
     re.I,
 )
 _CITIZEN_RE = re.compile(
@@ -382,7 +385,13 @@ def eligibility_evidence(
         "needs_sponsorship"
     ) is True
     if not_citizen and GOVERNMENT_TRACK_RE.search(title or ""):
-        return "citizenship_required", _quote(f"title: {title}")
+        # the posting's own requirement line when it has one (a clearance, a
+        # citizenship line); the title alone only when the text says nothing
+        found = eligibility_evidence(description, profile)
+        return found or (
+            "citizenship_required",
+            _quote(f"the title names a US government team, which hires US citizens: {title}"),
+        )
     education = str((profile or {}).get("education") or "").lower()
     has_grad_degree = "master" in education or "phd" in education or "doctor" in education
     if (profile or {}).get("student_visa") is True:

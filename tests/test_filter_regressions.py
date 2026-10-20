@@ -265,3 +265,15 @@ def test_one_to_three_years_is_a_lower_scored_stretch_not_a_drop() -> None:
     out = llm.score_from_checks(dict(checks), text)
     assert out["score"] == plain - llm.STRETCH_PENALTY["senior"]
     assert "asks 1 to 3 years of experience" in out["rationale"]
+
+
+def test_a_government_title_quotes_the_posting_s_own_clearance_line() -> None:
+    text = "What We Require\n- Active Full Scope Poly Level clearance.\n- Ability to travel."
+    found = config.eligibility_evidence(
+        text, ON_OPT, "Deployment Strategist, New Grad - Intel, US Government"
+    )
+    assert found == ("clearance_required", "- Active Full Scope Poly Level clearance.")
+    code, quote = config.eligibility_evidence("Python a plus.", ON_OPT, "Analyst - US Government")
+    assert code == "citizenship_required" and quote.startswith(
+        "the title names a US government team"
+    )
