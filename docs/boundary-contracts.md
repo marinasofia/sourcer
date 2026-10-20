@@ -39,5 +39,6 @@ Submission authorization is private database state. Company input cannot set
 is preserved only while a company remains in the configured inventory. Removing
 a company disables its row.
 
-TODO: transactional recovery, complete deployment authentication/rate controls,
-and release verification remain open.
+Open: transactional recovery and signed release artifacts. The HTTP service
+has bearer authentication, a process-wide budget, and concurrency and
+connection limits; a per-client rate limit is left to a proxy in front of it.

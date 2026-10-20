@@ -6,6 +6,16 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Security
+
+- Penetration tested before publishing; see SECURITY.md. Every outside fetch
+  goes through `sourcer.net` (public HTTPS, checked redirects, the connection
+  pinned to the checked address, size and time caps), the browser fetches
+  through it with Chromium's sandbox on, slow link patterns run in linear time,
+  the scoring service needs a token and has one budget per process, the Claude
+  CLI gets only its own environment with prompts off the command line, and
+  build tools, hooks, and base images are pinned by hash.
+
 ### Added
 
 - `sourcer.eligibility.eligible(posting, profile)` is the one function for

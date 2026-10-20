@@ -63,6 +63,6 @@ package release workflow is not necessary.
 
 ## Remaining work
 
-TODO: complete the scoped acceptance criteria for recovery, deployment controls, and release guarantees.
-This issue is the implementation backlog, not a claim that its checks exist.
+Open: transactional recovery of a partly restored database, and signed
+release artifacts. Neither is claimed by the current checks.
 Handle vulnerability details through [SECURITY.md](../SECURITY.md).
