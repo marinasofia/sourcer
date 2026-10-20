@@ -21,8 +21,12 @@ will review the report and coordinate mitigation and disclosure privately.
   only in the private data repository.
 - Telegram starts in dry run and requires exact chat and user allowlists before
   it can send messages or accept commands.
-- URL intake accepts public HTTPS destinations only. Probe and discovery redirects are checked again. Browser fallback is opt-in,
-  disables JavaScript, and rejects non-GET requests and private destinations.
+- Every fetch of an outside URL goes through `sourcer.net`: public HTTPS only,
+  each redirect checked, the connection pinned to the address that was checked
+  (so a DNS answer that changes cannot reach a private address), and replies
+  capped at 8 MB and 60 seconds. The opt-in browser fallback runs Chromium with
+  its sandbox on, sends every page request through the same guard, allows GET
+  only, and gets no secrets from the environment.
 - Treat posting text and model output as untrusted. Schema checks, truncation,
   and parameterized SQL address specific risks; they do not establish overall safety.
 - Model budget settings are estimates, not provider billing limits. Validate
@@ -36,6 +40,27 @@ will review the report and coordinate mitigation and disclosure privately.
   only change local database state.
 
 See [maintainer guidance](docs/maintenance.md) for validation and branch rules.
+
+## Security review before publishing
+
+The project was penetration tested in October 2026, before this repository
+was made public, across three areas: the network services, everything fetched
+from the internet, and the path from a public pull request into the operator's
+private side. Fixed as a result:
+
+- unguarded fetches that could reach private addresses (SSRF), including
+  through redirects, DNS rebinding, IPv6 forms that wrap IPv4, and a host
+  smuggled into an Oracle URL;
+- two regular expressions that a crafted careers page could make run for
+  hours, and a compressed reply that expanded to 1 GB;
+- a cost cap that applied per request instead of per process, a scoring
+  service reachable without a token on loopback, and unbounded connections;
+- secrets passed to the Claude CLI subprocess, and prompts visible in the
+  process list;
+- unhashed build tools, tag-pinned hooks and base images, and a cloud job that
+  both browsed outside pages and held write access.
+
+The code fixes each have a regression test.
 
 ## Free security checks
 
