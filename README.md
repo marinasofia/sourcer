@@ -11,6 +11,10 @@ every score.
 [![Checked with mypy](https://img.shields.io/badge/mypy-checked-blue)](pyproject.toml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-yellow.svg)](LICENSE)
 
+Sourcer is an ongoing project in active development. I use it every morning in
+my own search and improve it almost every day, so the code and these numbers
+keep changing. The [changelog](CHANGELOG.md) shows what moved recently.
+
 ## Why
 
 Job boards answer "what is open", not "what should I apply to today". A
@@ -111,6 +115,11 @@ It deploys to GitHub Actions, Docker, AWS Lambda, or Kubernetes.
 Every pull request runs 950+ tests with a 90% coverage floor,
 mypy, Ruff, Bandit, zizmor for workflows, CodeQL, dependency audits on
 hash pinned lockfiles and a secret scan of the full history.
+
+## Next up
+
+- Reading Gem hosted job boards, which render empty today
+- Checking the most wanted companies several times a day instead of once each morning
 
 ## More
 
