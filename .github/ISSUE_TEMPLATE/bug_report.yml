@@ -1,0 +1,59 @@
+name: Bug report
+description: Something behaves differently from what the docs say
+title: "bug: "
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. Please do not paste API keys, resumes, skills
+        vectors, or scored data. Redact company names if you need to.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, what you saw instead.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. SOURCER_COST_CAP=0 python -m sourcer.main
+        2. ...
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or output
+      description: Run with `SOURCER_LOG_LEVEL=DEBUG` if the default output is not enough.
+      render: text
+  - type: input
+    id: version
+    attributes:
+      label: Version or commit
+      placeholder: v0.2.0 or a commit sha
+    validations:
+      required: true
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Where
+      options:
+        - Local pipeline (python -m sourcer.main)
+        - Scheduled GitHub Actions run
+        - Docker or docker compose
+        - AWS Lambda
+        - Kubernetes HTTP service
+        - MCP server
+        - Snowflake backend
+        - Dashboard (GitHub Pages)
+    validations:
+      required: true
+  - type: input
+    id: python
+    attributes:
+      label: Python version and OS
+      placeholder: 3.12.4, macOS 15

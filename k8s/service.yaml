@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: sourcer
+spec:
+  type: ClusterIP  # reach it with kubectl port-forward, not from outside the cluster
+  selector:
+    app: sourcer
+  ports:
+    - port: 8500
+      targetPort: 8500

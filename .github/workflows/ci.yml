@@ -1,0 +1,196 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHON_DEFAULT: "3.12"
+
+jobs:
+  lint:
+    name: lint, format, types, hygiene
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          enable-cache: true
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: ${{ env.PYTHON_DEFAULT }}
+      - name: install
+        run: |
+          uv venv .venv
+          uv pip sync --python .venv/bin/python requirements-dev.txt
+          uv pip install --python .venv/bin/python -e . --no-deps
+      - name: ruff check
+        run: .venv/bin/ruff check . --output-format=github
+      - name: ruff format
+        run: .venv/bin/ruff format --check .
+      - name: mypy
+        run: .venv/bin/mypy
+      - name: house style and public hygiene
+        run: |
+          git ls-files -z '*.py' '*.md' '*.toml' '*.yml' '*.yaml' ':!CODE_OF_CONDUCT.md' \
+            | xargs -0 .venv/bin/python scripts/check_no_dashes.py
+          .venv/bin/python scripts/check_public_hygiene.py
+      - name: lockfiles match pyproject
+        run: |
+          uv pip compile pyproject.toml --python-version 3.12 --generate-hashes --constraint requirements.txt -o /tmp/req.txt -q
+          uv pip compile pyproject.toml --python-version 3.12 --extra dev --extra aws --extra snowflake --generate-hashes --constraint requirements-dev.txt -o /tmp/req-dev.txt -q
+          diff <(grep -vE '^[[:space:]]*#' requirements.txt) <(grep -vE '^[[:space:]]*#' /tmp/req.txt)
+          diff <(grep -vE '^[[:space:]]*#' requirements-dev.txt) <(grep -vE '^[[:space:]]*#' /tmp/req-dev.txt)
+          uv pip compile pyproject.toml --python-version 3.12 --extra browser --generate-hashes --constraint requirements.txt -o /tmp/req-browser.txt -q
+          diff <(grep -vE '^[[:space:]]*#' requirements-browser.txt) <(grep -vE '^[[:space:]]*#' /tmp/req-browser.txt)
+          uv pip compile security/requirements.in --python-version 3.12 --generate-hashes --constraint security/requirements.txt -o /tmp/security-req.txt -q
+          diff <(grep -vE '^[[:space:]]*#' security/requirements.txt) <(grep -vE '^[[:space:]]*#' /tmp/security-req.txt)
+      - name: actionlint
+        uses: raven-actions/actionlint@3d39aea434753780c3b3d4a1a31c854b4dbf49d7 # v2
+
+  test:
+    name: tests (py${{ matrix.python }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.12", "3.13", "3.14"]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          enable-cache: true
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: ${{ matrix.python }}
+      - name: install
+        run: |
+          uv venv .venv
+          uv pip sync --python .venv/bin/python requirements-dev.txt
+          uv pip install --python .venv/bin/python -e . --no-deps
+      - name: pytest with coverage gate
+        env:
+          SOURCER_COST_CAP: "0"
+        run: .venv/bin/pytest --cov --cov-report=term-missing --cov-report=xml -p no:cacheprovider
+      - name: upload coverage report
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: coverage-py${{ matrix.python }}
+          path: coverage.xml
+          retention-days: 14
+      - name: codecov
+        if: matrix.python == env.PYTHON_DEFAULT
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7
+        with:
+          files: coverage.xml
+          fail_ci_if_error: false
+          token: ${{ secrets.CODECOV_TOKEN }}
+
+  security:
+    name: dependency audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: ${{ env.PYTHON_DEFAULT }}
+      # The two lockfiles resolve for different environments (the Snowflake
+      # extra pins older cffi and cryptography), so each is audited on its own.
+      - name: audit runtime lockfile
+        uses: pypa/gh-action-pip-audit@1220774d901786e6f652ae159f7b6bc8fea6d266 # v1.1.0
+        with:
+          inputs: requirements.txt
+          require-hashes: true
+      - name: audit dev lockfile
+        uses: pypa/gh-action-pip-audit@1220774d901786e6f652ae159f7b6bc8fea6d266 # v1.1.0
+        with:
+          inputs: requirements-dev.txt
+          require-hashes: true
+      - name: audit browser lockfile
+        uses: pypa/gh-action-pip-audit@1220774d901786e6f652ae159f7b6bc8fea6d266 # v1.1.0
+        with:
+          inputs: requirements-browser.txt
+          require-hashes: true
+      - name: audit build and release lockfile
+        uses: pypa/gh-action-pip-audit@1220774d901786e6f652ae159f7b6bc8fea6d266 # v1.1.0
+        with:
+          inputs: requirements-release.txt
+          require-hashes: true
+      - name: audit scanner lockfile
+        uses: pypa/gh-action-pip-audit@1220774d901786e6f652ae159f7b6bc8fea6d266 # v1.1.0
+        with:
+          inputs: security/requirements.txt
+          require-hashes: true
+
+  build:
+    name: package and images
+    runs-on: ubuntu-latest
+    needs: [lint, test]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: ${{ env.PYTHON_DEFAULT }}
+      - name: build wheel and sdist
+        run: |
+          python -m pip install --quiet --require-hashes -r requirements-release.txt
+          python -m build --no-isolation
+          python -m twine check dist/*
+      - name: smoke the wheel
+        run: |
+          python -m venv /tmp/wheel-venv
+          /tmp/wheel-venv/bin/pip install --quiet dist/*.whl
+          /tmp/wheel-venv/bin/python -c "import sourcer; print(sourcer.__version__)"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: dist
+          path: dist/
+          retention-days: 14
+      - name: hadolint
+        uses: hadolint/hadolint-action@06be81baf89a55ffd0e24b8f04a4185738dd3387 # v3.5.0
+        with:
+          recursive: true
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
+      - name: seed inputs the images copy
+        run: |
+          cp skills_vector.example.json skills_vector.json
+          mkdir -p docs && [ -f docs/data.json ] || echo '{"postings": [], "runs": []}' > docs/data.json
+      - name: build pipeline image
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
+        with:
+          context: .
+          push: false
+          tags: sourcer:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: build lambda image
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
+        with:
+          context: .
+          file: Dockerfile.lambda
+          push: false
+          tags: sourcer-lambda:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: pipeline image runs a zero-spend, zero-network pipeline
+        run: |
+          docker run --rm -e SOURCER_COST_CAP=0 -e SOURCER_SIMPLIFY=0 \
+            -e SOURCER_COMPANIES=/fixtures/companies-empty.json -e SOURCER_DB=/tmp/smoke.db \
+            -v "$PWD/tests/fixtures:/fixtures:ro" sourcer:ci | tail -20

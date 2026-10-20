@@ -1,0 +1,153 @@
+{
+ "version": 1,
+ "profile": {"education": "Bachelor's", "in_progress": true, "grad_year": 2027, "grad_month": 5, "max_years_experience": 2},
+ "records": [
+  {
+   "id": "intern-nyc-fit",
+   "posting": {"title": "AI Engineer Intern", "location": "New York, NY", "employment_type": "intern", "start_date": "summer 2027", "seniority": "intern", "years_experience_min": null, "work_mode": "onsite"},
+   "expected": {"excluded": false, "level_fit": "fit", "score_band": [70, 100]},
+   "scoring_input": {"company": "TestCo", "title": "AI Engineer Intern", "location": "New York, NY", "url": "https://example.com/1", "description": "Summer 2027 internship in New York. Build LLM agents with Python and LangGraph, write SQL against Postgres, ship evaluation harnesses."}
+  },
+  {
+   "id": "senior-title",
+   "posting": {"title": "Senior Machine Learning Engineer", "location": "Remote US", "employment_type": "full time", "start_date": null, "seniority": "senior", "years_experience_min": 6, "work_mode": "remote"},
+   "expected": {"excluded": true, "reason_contains": "senior-level title", "level_fit": "misfit"}
+  },
+  {
+   "id": "member-of-technical-staff-not-senior",
+   "posting": {"title": "Member of Technical Staff, Applied AI", "location": "New York, NY", "employment_type": "full time", "start_date": "2027 new grad", "seniority": "entry", "years_experience_min": 0, "work_mode": "hybrid"},
+   "expected": {"excluded": false, "level_fit": "fit"}
+  },
+  {
+   "id": "five-years-required",
+   "posting": {"title": "Data Scientist", "location": "Remote US", "employment_type": "full time", "start_date": null, "seniority": "unspecified", "years_experience_min": 5, "work_mode": "remote"},
+   "expected": {"excluded": true, "reason_contains": "5+ years", "level_fit": "misfit"}
+  },
+  {
+   "id": "four-years-required",
+   "posting": {"title": "Data Scientist", "location": "Remote US", "employment_type": "full time", "start_date": "summer 2027", "seniority": "unspecified", "years_experience_min": 4, "work_mode": "remote"},
+   "expected": {"excluded": true, "reason_contains": "4+ years", "level_fit": "misfit"}
+  },
+  {
+   "id": "immediate-start-full-time",
+   "posting": {"title": "Analytics Engineer", "location": "New York, NY", "employment_type": "full time", "start_date": "immediate start", "seniority": "entry", "years_experience_min": 1, "work_mode": "onsite"},
+   "expected": {"excluded": true, "reason_contains": "immediate start"}
+  },
+  {
+   "id": "contract-role",
+   "posting": {"title": "Data Analyst", "location": "Remote US", "employment_type": "contract", "start_date": null, "seniority": "entry", "years_experience_min": null, "work_mode": "remote"},
+   "expected": {"excluded": true, "reason_contains": "contract role"}
+  },
+  {
+   "id": "hybrid-outside-nyc",
+   "posting": {"title": "Machine Learning Engineer", "location": "Austin, TX; Remote", "employment_type": "full time", "start_date": "", "seniority": "entry", "years_experience_min": 1, "work_mode": "hybrid"},
+   "expected": {"excluded": true, "reason_contains": "in-person outside NYC"}
+  },
+  {
+   "id": "hybrid-outside-nyc-summer-2027-allowed",
+   "posting": {"title": "Machine Learning Engineer", "location": "Austin, TX; Remote", "employment_type": "full time", "start_date": "summer 2027", "seniority": "entry", "years_experience_min": 1, "work_mode": "hybrid"},
+   "expected": {"excluded": false, "level_fit": "fit"}
+  },
+  {
+   "id": "hybrid-in-nyc-allowed",
+   "posting": {"title": "Machine Learning Engineer", "location": "New York, NY", "employment_type": "full time", "start_date": "summer 2027", "seniority": "entry", "years_experience_min": 1, "work_mode": "hybrid"},
+   "expected": {"excluded": false, "level_fit": "fit"}
+  },
+  {
+   "id": "full-time-before-graduation",
+   "posting": {"title": "AI Engineer", "location": "Remote US", "employment_type": "full time", "start_date": "fall 2026", "seniority": "entry", "years_experience_min": 0, "work_mode": "remote"},
+   "expected": {"excluded": true, "reason_contains": "before graduation"}
+  },
+  {
+   "id": "intern-before-graduation-allowed",
+   "posting": {"title": "Data Engineer Intern", "location": "Remote US", "employment_type": "intern", "start_date": "fall 2026", "seniority": "intern", "years_experience_min": null, "work_mode": "remote"},
+   "expected": {"excluded": false, "level_fit": "fit"}
+  },
+  {
+   "id": "ambiguous-timing-not-excluded",
+   "posting": {"title": "Applied AI Engineer", "location": "Remote US", "employment_type": "unspecified", "start_date": null, "seniority": "unspecified", "years_experience_min": null, "work_mode": "unspecified"},
+   "expected": {"excluded": false, "level_fit": "stretch"}
+  },
+  {
+   "id": "new-grad-class-before-graduation-misfit",
+   "posting": {"title": "Software Engineer, AI Platform", "location": "New York, NY", "employment_type": "full time", "start_date": "2026 new grad", "seniority": "entry", "years_experience_min": 0, "work_mode": "onsite"},
+   "expected": {"excluded": true, "reason_contains": "before graduation", "level_fit": "misfit"}
+  },
+  {
+   "id": "part-time-fit",
+   "posting": {"title": "Data Analyst (part time)", "location": "New York, NY", "employment_type": "part time", "start_date": null, "seniority": "unspecified", "years_experience_min": null, "work_mode": "onsite"},
+   "expected": {"excluded": false, "level_fit": "fit"}
+  },
+  {
+   "id": "mandatory-phd",
+   "posting": {
+    "title": "AI Engineer Intern",
+    "location": "New York, NY",
+    "employment_type": "intern",
+    "start_date": "summer 2027",
+    "seniority": "intern",
+    "years_experience_min": null,
+    "work_mode": "onsite",
+    "description": "PhD required."
+   },
+   "expected": {
+    "excluded": true,
+    "level_fit": "fit",
+    "reason_contains": "phd_required"
+   }
+  },
+  {
+   "id": "mandatory-clearance",
+   "posting": {
+    "title": "AI Engineer Intern",
+    "location": "New York, NY",
+    "employment_type": "intern",
+    "start_date": "summer 2027",
+    "seniority": "intern",
+    "years_experience_min": null,
+    "work_mode": "onsite",
+    "description": "Active security clearance required."
+   },
+   "expected": {
+    "excluded": true,
+    "level_fit": "fit",
+    "reason_contains": "clearance_required"
+   }
+  },
+  {
+   "id": "mandatory-office-location",
+   "posting": {
+    "title": "AI Engineer Intern",
+    "location": "New York, NY",
+    "employment_type": "intern",
+    "start_date": "summer 2027",
+    "seniority": "intern",
+    "years_experience_min": null,
+    "work_mode": "onsite",
+    "description": "Must be based in London."
+   },
+   "expected": {
+    "excluded": true,
+    "level_fit": "fit",
+    "reason_contains": "location required outside scope"
+   }
+  },
+  {
+   "id": "optional-phd",
+   "posting": {
+    "title": "AI Engineer Intern",
+    "location": "New York, NY",
+    "employment_type": "intern",
+    "start_date": "summer 2027",
+    "seniority": "intern",
+    "years_experience_min": null,
+    "work_mode": "onsite",
+    "description": "PhD preferred."
+   },
+   "expected": {
+    "excluded": false,
+    "level_fit": "fit"
+   }
+  }
+ ]
+}

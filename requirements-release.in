@@ -1,0 +1,4 @@
+-r requirements-build.in
+# packaging and checking release files in CI
+build
+twine

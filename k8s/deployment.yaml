@@ -1,0 +1,78 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sourcer
+  labels:
+    app: sourcer
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: sourcer
+  template:
+    metadata:
+      labels:
+        app: sourcer
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: sourcer
+          image: sourcer-serve:latest
+          imagePullPolicy: Never   # image is built into minikube's docker daemon
+          command: ["python", "-m", "sourcer.serve"]
+          ports:
+            - containerPort: 8500
+              name: http
+          env:
+            - name: SOURCER_HTTP_HOST
+              value: "0.0.0.0"
+            - name: ANTHROPIC_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: sourcer-secrets
+                  key: anthropic-api-key
+            - name: SOURCER_HTTP_TOKEN  # required off loopback: POST /score is a paid call
+              valueFrom:
+                secretKeyRef:
+                  name: sourcer-secrets
+                  key: http-token
+            - name: SOURCER_HTTP_PORT
+              value: "8500"
+            - name: SOURCER_LOG_LEVEL
+              value: INFO
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 2
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 3
+            periodSeconds: 15
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 64Mi

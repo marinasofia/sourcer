@@ -1,0 +1,32 @@
+{
+  "meta": {
+    "source": "Example vector. The real skills_vector.json is personal (it encodes the operator's weighted skill profile) and lives in the private data repo; copy this file to skills_vector.json and edit weights to run the pipeline.",
+    "weighting": "1-10, relevance to your target roles, not proficiency"
+  },
+  "skills": [
+    {
+      "skill": "Python",
+      "weight": 10,
+      "category": "Languages",
+      "synonyms": ["python3", "python scripting"]
+    },
+    {
+      "skill": "LLM agent development",
+      "weight": 9,
+      "category": "AI/ML",
+      "synonyms": ["autonomous agents", "agentic AI", "AI agents", "tool use"]
+    },
+    {
+      "skill": "SQL",
+      "weight": 8,
+      "category": "Data Engineering",
+      "synonyms": ["PostgreSQL", "MySQL", "relational databases"]
+    },
+    {
+      "skill": "Docker",
+      "weight": 6,
+      "category": "Software",
+      "synonyms": ["containers", "docker compose"]
+    }
+  ]
+}

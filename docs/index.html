@@ -1,0 +1,312 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sourcer: job matching agent</title>
+<style>
+@import url("https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Instrument+Sans:wght@400;500;600&display=swap");
+:root {
+  --page: #fbfaf7; --backdrop: #edf1ea; --card: #ffffff;
+  --ink: #1d201e; --ink2: #4c534d; --muted: #798078; --line: #e5e9e2;
+  --clover: #2d8159; --clover-deep: #1f6845; --clover-soft: #e7f1e7;
+  --warm: #E0864A; --steady: #D2A24E; --cooling: #5E9A8E; --cold: #6F8AA8;
+  --r-row: 18px; --r-card: 22px; --r-pill: 999px;
+  --shadow-row: 0 8px 20px -12px rgba(38,60,43,0.32);
+  --shadow-card: 0 4px 18px -12px rgba(38,60,43,0.28);
+  --shadow-cta: 0 10px 24px -10px rgba(31,104,69,0.46);
+  --dur: 140ms; --ease: cubic-bezier(0.22,1,0.36,1);
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--page); color: var(--ink);
+  font: 14px/1.55 "Instrument Sans", system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+.wrap { max-width: 1180px; margin: 0 auto; padding: 40px 26px 80px; }
+
+header { margin-bottom: 26px; }
+.brand { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; }
+h1 { font-family: "Fraunces", Georgia, serif; font-size: 34px; font-weight: 600;
+  letter-spacing: -0.01em; margin: 0; }
+h1 .dot { color: var(--clover); }
+.sub { color: var(--muted); font-size: 13px; }
+.lede { color: var(--ink2); max-width: 64ch; font-size: 15.5px; margin: 12px 0 0; }
+.lede a { color: var(--clover-deep); }
+
+.summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 10px; margin: 26px 0; }
+.cell { background: var(--card); border: 1px solid var(--line); border-radius: var(--r-row);
+  box-shadow: var(--shadow-card); padding: 15px 17px; }
+.cell .v { font-family: "Fraunces", Georgia, serif; font-size: 26px; font-weight: 600;
+  font-variant-numeric: tabular-nums; }
+.cell .v.good { color: var(--clover-deep); }
+.cell .k { color: var(--muted); font-size: 11px; font-weight: 600;
+  letter-spacing: 0.07em; text-transform: uppercase; margin-top: 2px; }
+
+.bar { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 16px; }
+.views { display: flex; gap: 2px; background: var(--card); border: 1px solid var(--line);
+  border-radius: var(--r-pill); padding: 3px; box-shadow: var(--shadow-card); }
+.views button { font: inherit; font-size: 12.5px; font-weight: 600; border: 0; cursor: pointer;
+  background: transparent; color: var(--ink2); border-radius: var(--r-pill); padding: 6px 15px;
+  transition: all var(--dur) var(--ease); }
+.views button.on { background: var(--clover); color: #fff; }
+.seg { display: flex; border: 1px solid var(--line); border-radius: var(--r-pill);
+  overflow: hidden; background: var(--card); }
+.seg button { font: inherit; font-size: 12.5px; font-weight: 550; padding: 7px 13px;
+  border: 0; cursor: pointer; background: transparent; color: var(--ink2); }
+.seg button.on { background: var(--clover); color: #fff; font-weight: 600; }
+.search { background: var(--card); border: 1px solid var(--line); border-radius: var(--r-pill);
+  padding: 8px 15px; font: inherit; width: 210px; color: var(--ink); }
+.search:focus { outline: 2px solid var(--clover-soft); border-color: var(--clover); }
+select { font: inherit; font-size: 13px; background: var(--card); color: var(--ink);
+  border: 1px solid var(--line); border-radius: var(--r-pill); padding: 7px 12px; }
+.count { color: var(--muted); font-size: 12.5px; margin-left: auto; display: flex; gap: 8px; align-items: center; }
+.chipfilter { background: var(--clover-soft); color: var(--clover-deep); border-radius: var(--r-pill);
+  padding: 3px 11px; font-weight: 600; font-size: 12px; cursor: pointer; }
+.chipfilter::after { content: " \00d7"; }
+
+.vizpanel { background: var(--card); border: 1px solid var(--line); border-radius: var(--r-card);
+  box-shadow: var(--shadow-card); padding: 24px; margin-bottom: 16px; }
+.vizpanel.tall { min-height: 52vh; display: flex; flex-direction: column; }
+.vizpanel[hidden] { display: none !important; }
+.viztools { display: flex; gap: 10px; align-items: center; margin-bottom: 12px; }
+.microlabel { font-size: 11px; font-weight: 600; letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--muted); }
+
+.bubbles { display: flex; flex-wrap: wrap; gap: 14px; align-items: center;
+  align-content: center; justify-content: center; flex: 1; padding: 6px 0; }
+.bubble { display: flex; flex-direction: column; align-items: center; justify-content: center;
+  border-radius: 50%; cursor: pointer; text-align: center; line-height: 1.15;
+  background: var(--clover-soft); color: var(--clover-deep); border: 1.5px solid #cfe3d2;
+  overflow: hidden; padding: 6px; animation: bob 5s ease-in-out infinite alternate;
+  transition: background var(--dur) var(--ease); }
+.bubble:nth-child(2n) { animation-duration: 6.4s; animation-delay: 0.7s; }
+.bubble:nth-child(3n) { animation-duration: 7.3s; animation-delay: 1.4s; }
+@keyframes bob { from { transform: translateY(4px); } to { transform: translateY(-6px); } }
+.bubble:hover { transform: scale(1.07); animation-play-state: paused; }
+.bubble.on { background: var(--clover); color: #fff; border-color: var(--clover); box-shadow: var(--shadow-cta); }
+.bubble.rest { background: var(--backdrop); color: var(--muted); border-color: var(--line);
+  cursor: default; animation: none; }
+.bubble .bn { font-family: "Fraunces", Georgia, serif; font-weight: 600; font-variant-numeric: tabular-nums; }
+.bubble .bl { font-size: 10.5px; font-weight: 600; max-width: 92%; overflow: hidden;
+  text-overflow: ellipsis; white-space: nowrap; }
+
+.pyr { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.tier { color: var(--ink); border-radius: var(--r-row); cursor: pointer; text-align: center;
+  padding: 10px 16px; font-weight: 600; font-size: 12.5px; white-space: nowrap;
+  min-width: 140px; transition: all var(--dur) var(--ease); box-shadow: var(--shadow-card); }
+.tier:hover { filter: brightness(1.05); }
+.tier.on { outline: 3px solid rgba(45,129,89,0.35); outline-offset: 2px; }
+.tier .tn { font-variant-numeric: tabular-nums; opacity: 0.75; font-weight: 500; }
+
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(330px, 1fr)); gap: 13px; }
+.rowcard { background: var(--card); border: 1px solid var(--line); border-radius: var(--r-row);
+  box-shadow: var(--shadow-row); padding: 17px 18px 15px; display: flex; flex-direction: column;
+  gap: 9px; transition: box-shadow var(--dur) var(--ease); }
+.rowcard:hover { box-shadow: 0 12px 24px -14px rgba(38,60,43,0.34); }
+.top { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+.co { font-weight: 600; font-size: 13px; color: var(--ink2); }
+.tag { font-size: 10.5px; font-weight: 650; letter-spacing: 0.05em; text-transform: uppercase;
+  color: var(--ink2); border: 1px solid var(--line); border-radius: var(--r-pill);
+  padding: 2px 9px; white-space: nowrap; }
+.tag.internship, .tag.newgrad { color: var(--clover-deep); border-color: var(--clover); }
+.role { margin: 0; font-family: "Fraunces", Georgia, serif; font-size: 16.5px;
+  font-weight: 500; line-height: 1.3; }
+.role a { color: var(--ink); text-decoration: none; }
+.role a:hover { color: var(--clover-deep); }
+.loc { color: var(--muted); font-size: 12px; }
+.scorewrap { display: flex; align-items: center; gap: 12px; }
+.scoreno { font-family: "Fraunces", Georgia, serif; font-size: 24px; font-weight: 600;
+  font-variant-numeric: tabular-nums; min-width: 42px; }
+.track { flex: 1; height: 6px; background: var(--backdrop); border-radius: 4px; overflow: hidden; }
+.fill { height: 100%; border-radius: 0 4px 4px 0; }
+.w-warm .scoreno { color: var(--warm); } .w-warm .fill { background: var(--warm); }
+.w-steady .scoreno { color: var(--steady); } .w-steady .fill { background: var(--steady); }
+.w-cooling .scoreno { color: var(--cooling); } .w-cooling .fill { background: var(--cooling); }
+.w-cold .scoreno { color: var(--cold); } .w-cold .fill { background: var(--cold); }
+.blurb { color: var(--ink2); font-size: 13px; line-height: 1.5; margin: 0;
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;
+  overflow: hidden; cursor: pointer; }
+.blurb.open { display: block; -webkit-line-clamp: unset; }
+.dates { color: var(--muted); font-size: 11.5px; margin-top: auto; }
+.empty { color: var(--muted); text-align: center; padding: 56px 0; grid-column: 1/-1;
+  font-family: "Fraunces", Georgia, serif; font-size: 16px; }
+footer { margin-top: 48px; padding-top: 18px; border-top: 1px solid var(--line);
+  color: var(--muted); font-size: 12.5px; max-width: 78ch; }
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <div class="brand">
+    <h1>Sourcer<span class="dot">.</span></h1>
+    <span class="sub" id="updated"></span>
+  </div>
+  <p class="lede">A job matching agent I built and run on a schedule. It scans the
+  public boards of fintech and AI companies plus verified internship lists,
+  extracts every relevant posting with the Claude API, scores it 0 to 100 against
+  my skills, verifies each listing is live at the source, and filters to roles
+  matching my level. Employers are shown by sector rather than by name: the point
+  is that the scoring is consistent, not which companies are hiring.
+  <a href="https://github.com/marinasofia/sourcer">Pipeline source on GitHub</a>.</p>
+</header>
+
+<div class="summary" id="summary"></div>
+
+<div class="bar">
+  <div class="views" id="views">
+    <button data-v="list" class="on">Cards</button>
+    <button data-v="bubbles">Bubbles</button>
+    <button data-v="pyramid">Pyramid</button>
+  </div>
+  <div class="seg" id="seg-type">
+    <button data-v="" class="on">All</button>
+    <button data-v="internship">Internships</button>
+    <button data-v="new grad">New grad</button>
+    <button data-v="full time">Full time</button>
+  </div>
+  <select id="f-sort">
+    <option value="score">Score, high to low</option>
+    <option value="posted">Newest first</option>
+    <option value="company">Sector, A to Z</option>
+  </select>
+  <input class="search" id="q" placeholder="Search company or role" type="search">
+  <span class="count" id="count"></span>
+</div>
+
+<div class="vizpanel" id="viz" hidden></div>
+<div class="grid" id="grid"></div>
+
+<footer>
+  Scores are a weighted match between each posting's stated requirements and my
+  skills vector, computed with schema validated Claude Haiku calls, deterministic
+  pre filters, and per listing source verification. Refreshed on a weekday
+  schedule by GitHub Actions from a sanitized export; detailed scoring internals
+  stay private. All data comes from public job boards.
+</footer>
+</div>
+
+<script>
+const esc = s => (s || "").replace(/[&<>"]/g, c =>
+  ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c]));
+let DATA = null, view = "list", type = "", companyFilter = null, band = null;
+
+const BANDS = [
+  ["90+", p => p.score >= 90, "#F0B36A"],
+  ["80-89", p => p.score >= 80 && p.score < 90, "#E7CB86"],
+  ["70-79", p => p.score >= 70 && p.score < 80, "#cfe3d2"],
+  ["60-69", p => p.score >= 60 && p.score < 70, "#8FBEB4"],
+  ["under 60", p => p.score < 60, "#9FB4CB"],
+];
+
+fetch("showcase.json").then(r => r.json()).then(d => {
+  DATA = d;
+  const s = d.summary;
+  document.getElementById("updated").textContent =
+    "updated " + (s.updated || "").slice(0, 10) + " · refreshes weekdays";
+  const cells = [
+    [s.postings_on_boards, "postings scanned / run"],
+    [s.companies_covered, "companies"],
+    [s.roles_scored, "roles scored"],
+    [s.listings_tracked, "listings tracked"],
+    [(s.schema_failure_rate * 100).toFixed(1) + "%", "schema failure rate", true],
+  ];
+  document.getElementById("summary").innerHTML = cells.map(([v, k, good]) =>
+    `<div class="cell"><div class="v${good ? " good" : ""}">${v ?? "n/a"}</div><div class="k">${k}</div></div>`).join("");
+  render();
+});
+
+document.getElementById("views").addEventListener("click", e => {
+  if (e.target.tagName !== "BUTTON") return;
+  view = e.target.dataset.v;
+  [...document.getElementById("views").children].forEach(b => b.classList.toggle("on", b === e.target));
+  render();
+});
+document.getElementById("seg-type").addEventListener("click", e => {
+  if (e.target.tagName !== "BUTTON") return;
+  type = e.target.dataset.v;
+  [...document.getElementById("seg-type").children].forEach(b => b.classList.toggle("on", b === e.target));
+  render();
+});
+document.getElementById("q").addEventListener("input", render);
+document.getElementById("f-sort").addEventListener("change", render);
+
+function renderViz(base) {
+  const viz = document.getElementById("viz");
+  viz.hidden = view === "list";
+  viz.classList.toggle("tall", view === "bubbles");
+  if (view === "list") return;
+  if (view === "bubbles") {
+    const groups = {};
+    base.forEach(p => { groups[p.sector] = (groups[p.sector] || 0) + 1; });
+    let entries = Object.entries(groups).sort((a, b) => b[1] - a[1]);
+    const clustered = entries.filter(e => e[1] >= 2).slice(0, 30);
+    const rest = entries.filter(e => !clustered.includes(e));
+    const max = Math.max(...clustered.map(e => e[1]), 1);
+    viz.innerHTML = `<div class="viztools"><span class="microlabel">Postings by sector</span>
+      <span class="microlabel" style="margin-left:auto">click a bubble to filter</span></div>
+      <div class="bubbles">` + clustered.map(([name, n]) => {
+        const d = Math.round(62 + Math.sqrt(n / max) * 100);
+        const on = companyFilter === name ? " on" : "";
+        return `<div class="bubble${on}" style="width:${d}px;height:${d}px"
+          title="${esc(name)}: ${n}" data-sector="${esc(name)}">
+          <span class="bn" style="font-size:${Math.max(13, d / 4.4)}px">${n}</span>
+          <span class="bl">${esc(name)}</span></div>`;
+      }).join("") + (rest.length ? `<div class="bubble rest" style="width:72px;height:72px"
+        title="${rest.length} sectors with one match">
+        <span class="bn" style="font-size:13px">+${rest.length}</span>
+        <span class="bl">single matches</span></div>` : "") + `</div>`;
+    // the sector name travels as data, never inside script text
+    viz.querySelectorAll(".bubble[data-sector]").forEach(el => el.addEventListener("click", () => {
+      const name = el.dataset.sector;
+      companyFilter = companyFilter === name ? null : name;
+      render();
+    }));
+  } else {
+    const max = Math.max(...BANDS.map(([, f]) => base.filter(f).length), 1);
+    viz.innerHTML = `<div class="viztools"><span class="microlabel">Match pyramid</span>
+      <span class="microlabel" style="margin-left:auto">click a tier to filter</span></div>
+      <div class="pyr">` + BANDS.map(([name, f, color]) => {
+        const n = base.filter(f).length;
+        if (!n) return "";
+        const w = Math.max(15, (n / max) * 90);
+        const on = band === name ? " on" : "";
+        return `<div class="tier${on}" style="width:${w}%;background:${color}"
+          onclick="band = band === '${name}' ? null : '${name}'; render()">
+          ${name} <span class="tn">· ${n}</span></div>`;
+      }).join("") + `</div>`;
+  }
+}
+
+function render() {
+  const q = document.getElementById("q").value.toLowerCase();
+  const sort = document.getElementById("f-sort").value;
+  let base = DATA.postings.filter(p => !type || p.type === type)
+    .filter(p => !q || (p.sector + " " + p.role).toLowerCase().includes(q));
+  renderViz(base);
+  let rows = base;
+  if (companyFilter) rows = rows.filter(p => p.sector === companyFilter);
+  if (band) rows = rows.filter(BANDS.find(b => b[0] === band)[1]);
+  rows = [...rows];
+  if (sort === "company") rows.sort((a, b) => a.sector.localeCompare(b.sector) || b.score - a.score);
+  else if (sort === "posted") rows.sort((a, b) => (b.posted || "").localeCompare(a.posted || "") || b.score - a.score);
+  else rows.sort((a, b) => b.score - a.score);
+  const chips = [];
+  if (companyFilter) chips.push(`<span class="chipfilter" onclick="companyFilter=null;render()">${esc(companyFilter)}</span>`);
+  if (band) chips.push(`<span class="chipfilter" onclick="band=null;render()">score ${esc(band)}</span>`);
+  document.getElementById("count").innerHTML = rows.length + " postings " + chips.join(" ");
+  document.getElementById("grid").innerHTML = rows.length ? rows.map(p => `
+    <article class="rowcard ${p.score >= 85 ? "w-warm" : p.score >= 70 ? "w-steady" : p.score >= 50 ? "w-cooling" : "w-cold"}">
+      <div class="top"><span class="co">${esc(p.sector)}</span>
+        <span class="tag ${esc(p.type).replace(" ", "")}">${esc(p.type)}</span></div>
+      <h3 class="role">${esc(p.role)}</h3>
+      <span class="loc">${esc(p.location || "")}</span>
+      <div class="scorewrap"><span class="scoreno">${p.score}</span>
+        <div class="track"><div class="fill" style="width:${p.score}%"></div></div></div>
+      <p class="blurb" title="click to expand">${esc(p.blurb)}</p>
+      <span class="dates">${[p.start ? "start: " + esc(p.start) : "", p.posted ? "posted " + esc(p.posted) : ""].filter(Boolean).join(" · ")}</span>
+    </article>`).join("") : `<div class="empty">No postings match these filters.</div>`;
+  document.querySelectorAll(".blurb").forEach(el =>
+    el.addEventListener("click", () => el.classList.toggle("open")));
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,74 @@
+# --- Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+*.egg
+build/
+dist/
+.eggs/
+pip-wheel-metadata/
+
+# --- Virtual environments
+.venv/
+venv/
+env/
+
+# --- Tooling caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.hypothesis/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+.tox/
+.nox/
+
+# --- Secrets and local config (never commit)
+.env
+.env.*
+!.env.example
+
+# --- Operator-specific inputs (kept in the private data repo)
+skills_vector.json
+profile.json
+resumes/
+kits/
+*.docx
+*.odt
+*.pdf
+*.rtf
+
+# --- Generated data and run output
+data/
+docs/data.json
+docs/data-public.json
+docs/showcase.json
+sample_output.txt
+*.db
+*.sqlite
+*.sqlite3
+
+# --- Editors and OS
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# --- Notebooks
+.ipynb_checkpoints/
+
+# Database sidecars and local reports
+*.db-*
+*.sqlite-*
+*.sqlite3-*
+*.log
+coverage.json
+
+# Local smoke-test and evaluation inputs
+/.local/

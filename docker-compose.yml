@@ -1,0 +1,17 @@
+services:
+  sourcer:
+    build: .
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      SOURCER_COST_CAP: ${SOURCER_COST_CAP:-2.50}
+      SOURCER_LOG_LEVEL: ${SOURCER_LOG_LEVEL:-INFO}
+    volumes:
+      - ./data:/data
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
