@@ -375,9 +375,14 @@ def json_call(
     *,
     max_tokens: int = 1024,
     model: str | None = None,
+    effort: str | None = None,
 ) -> JsonResult:
-    """One call plus at most one corrective retry. Returns (data, error)."""
+    """One call plus at most one corrective retry. Returns (data, error).
+    ``effort`` sets how much the model reasons first; only the Claude Code
+    backend takes it, and the Messages API path runs as it always has."""
     params = call_params(system, user, max_tokens, model)
+    if effort is not None and getattr(client.messages, "accepts_effort", False):
+        params["effort"] = effort
     messages = params["messages"]
     err: str | None = None
     for attempt in range(2):

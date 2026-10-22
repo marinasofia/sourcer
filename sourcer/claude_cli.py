@@ -34,6 +34,9 @@ log = get_logger(__name__)
 THINKING_ALWAYS_ON = re.compile(r"claude-(?:sonnet-5-5|opus-5-5|fable-5|mythos-5)")
 REFUSES_THINKING_OFF = "To turn thinking off on this model"
 TIMEOUT_S = int(os.environ.get("SOURCER_CLAUDE_CLI_TIMEOUT", "180"))
+# How much the model reasons before it answers (the CLI's --effort). A short
+# follow up call that returns a few edits needs far less than a first draft.
+EFFORTS = frozenset({"low", "medium", "high", "xhigh", "max"})
 
 
 def _text(content: Any) -> str:
@@ -83,6 +86,8 @@ def _find_binary(exclude: str | None = None) -> str | None:
 
 
 class _Messages:
+    accepts_effort = True
+
     def __init__(self, binary: str) -> None:
         self.binary = binary
 
@@ -140,6 +145,11 @@ class _Messages:
             "--no-session-persistence",
             "--output-format", "json",
         ]  # fmt: skip
+        effort = params.get("effort")
+        if effort is not None:
+            if effort not in EFFORTS:
+                raise ValueError(f"effort must be one of {sorted(EFFORTS)}")
+            argv += ["--effort", effort]
         env = _cli_env()
         # Extraction and scoring need no extended thinking; it multiplies output
         # tokens. Newer models refuse to switch it off, so they run as they are.
