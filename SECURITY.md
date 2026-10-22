@@ -24,7 +24,7 @@ will review the report and coordinate mitigation and disclosure privately.
 - Every fetch of an outside URL goes through `sourcer.net`: public HTTPS only,
   each redirect checked, the connection pinned to the address that was checked
   (so a DNS answer that changes cannot reach a private address), and replies
-  capped at 8 MB and 60 seconds. The opt-in browser fallback runs Chromium with
+  capped at 64 MB and 60 seconds. The opt-in browser fallback runs Chromium with
   its sandbox on, sends every page request through the same guard, allows GET
   only, and gets no secrets from the environment.
 - Treat posting text and model output as untrusted. Schema checks, truncation,

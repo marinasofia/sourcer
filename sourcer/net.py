@@ -22,7 +22,9 @@ MAX_REDIRECTS = 5
 # a fetched page or API reply is read up to this many bytes after decompression,
 # and for at most this many seconds in all, so a hostile server cannot exhaust
 # memory with a compressed bomb or hold a worker with a slow trickle
-MAX_BODY_BYTES = 8_000_000
+# real replies reach 13 MB (Veeva's Lever board, the SimplifyJobs lists,
+# Anthropic's Greenhouse board at 10 MB); 8 MB refused them
+MAX_BODY_BYTES = 64_000_000
 MAX_READ_SECONDS = 60.0
 # IPv6 ranges that carry an IPv4 address inside: NAT64, 6to4, Teredo
 _EMBEDS_IPV4 = tuple(
