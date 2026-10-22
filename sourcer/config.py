@@ -296,8 +296,9 @@ _CITIZEN_RE = re.compile(
 _NO_SPONSOR_RE = re.compile(
     r"\b(?:not|unable to|cannot|can't|will not|won't|does not|do not)\s+"
     r"(?:[\w-]+\s+){0,4}sponsor(?:ship|ing|ed)?\b|\bno (?:visa )?sponsorship\b"
-    # "authorization to work in the US without sponsorship now or in the future"
-    r"|\bwithout\s+(?:the\s+need\s+for\s+|requiring\s+)?(?:\w+\s+){0,2}sponsorship\b"
+    # "authorization to work in the US without sponsorship now or in the future",
+    # "without the need for current or future visa sponsorship"
+    r"|\bwithout\s+(?:the\s+need\s+for\s+|requiring\s+)?(?:\w+\s+){0,4}sponsorship\b"
     r"|\bsponsorship\s+(?:is|will)\s+not\s+(?:be\s+)?(?:offered|provided|available)\b",
     re.I,
 )

@@ -15,6 +15,9 @@ All notable changes to this project are documented here. The format follows
   M.S. degree" passed the degree rule: the line split at "M.S." and had no
   "required". Abbreviated degrees stay whole, a requirements line counts as
   required, and curly apostrophes and "MS Excel" read correctly.
+- "Without the need for current or future visa sponsorship" passed the
+  sponsorship rule, which allowed only two words before "sponsorship".
+  It allows four now.
 
 ### Security
 

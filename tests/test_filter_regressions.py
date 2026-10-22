@@ -147,6 +147,11 @@ ON_OPT = {"student_visa": True, "needs_sponsorship": False, "us_citizen": False}
         ),
         ("We will not sponsor H-1B visas for this role.", "student_visa_barred"),
         ("We do not provide current or future sponsorship.", "student_visa_barred"),
+        (
+            "Applicants must be currently authorized to work in the United States on a full-time "
+            "basis without the need for current or future visa sponsorship.",
+            "student_visa_barred",
+        ),
         # an employer that takes OPT outweighs a general no sponsorship line
         (
             "US work authorization required. Open to candidates with OPT. This position does not "
