@@ -171,6 +171,9 @@ def requirement_lines(description: str) -> Iterator[tuple[str, bool]]:
     text = re.sub(r"<[^>]*>", " ", text)
     # "U.S." must not end a sentence for the splitter below
     text = re.sub(r"\bU\.S\.(?:A\.)?", "US", text, flags=re.I)
+    # nor may a degree: "a M.S. degree in Statistics", "Ph.D. required"
+    text = re.sub(r"\b([BM])\.(S|A|Sc)\.", r"\1\2", text)
+    text = re.sub(r"\bPh\.\s?D\.", "PhD", text, flags=re.I)
     optional_section = False
     for line in re.split(r"[;\n]|(?<=[.!?])\s+", text):
         if re.fullmatch(r"\s*(?:preferred qualifications|nice to have|bonus)\s*:?\s*", line, re.I):
@@ -260,9 +263,21 @@ def explicit_experience_minimum(description: str) -> float | None:
 # ("us_citizen": false, "needs_sponsorship": true, "student_visa": true);
 # unset means no opinion.
 _PHD_RE = re.compile(r"\b(ph\.?\s?d|doctorate|doctoral degree)\b", re.I)
-_MASTERS_RE = re.compile(r"\b(master'?s|m\.s\.|msc|graduate degree)\b", re.I)
-_BACHELOR_RE = re.compile(r"\b(bachelor'?s|b\.s\.|b\.a\.|undergraduate|or equivalent)\b", re.I)
-_DEGREE_REQUIRED_RE = re.compile(r"\b(required|must have|requires?)\b", re.I)
+_MASTERS_RE = re.compile(
+    r"\b(master['\u2019]?s|m\.s\.|msc|graduate degree)\b"
+    r"|(?-i:\bMS\b)(?=\s+(?:degree|in|or)\b)",  # "MS Excel" is not a degree
+    re.I,
+)
+_BACHELOR_RE = re.compile(
+    r"\b(bachelor['\u2019]?s|b\.s\.|b\.a\.|undergraduate|or equivalent)\b|(?-i:\bB[SA]\b)", re.I
+)
+# "required", or a line written as the requirement itself: "Requirements:
+# Recently graduated with a M.S. degree", "must hold a master's"
+_DEGREE_REQUIRED_RE = re.compile(
+    r"\b(required|must have|requires?)\b|^\W*(?:requirements|minimum qualifications)\s*:"
+    r"|\b(?:graduated|graduate) with\b|\bmust (?:hold|possess|be pursuing)\b",
+    re.I,
+)
 _CLEARANCE_RE = re.compile(
     r"\b(?:active|current)\s+(?:secret|top secret|ts/sci|ts|security)\b[^.]{0,20}\bclearance\b"
     r"|\b(?:secret|top secret|ts/sci|security) clearance (?:is )?required\b"

@@ -215,6 +215,18 @@ VISA = {**STUDENT, "student_visa": True}
         ("Requirements: PhD in Computer Science required.", STUDENT, "phd_required"),
         ("Master's degree in Statistics required.", STUDENT, "masters_required"),
         ("Bachelor's or Master's degree required.", STUDENT, None),
+        (
+            "Requirements: Recently graduated with a M.S. degree in Computer Science, Data "
+            "Science, Statistics, Information Systems, or a related field. Strong SQL.",
+            STUDENT,
+            "masters_required",
+        ),
+        ("Ph.D. in Physics required.", STUDENT, "phd_required"),
+        ("Requirements: B.S. or M.S. in Computer Science.", STUDENT, None),
+        ("Requirements: Strong SQL. Experience with dbt.", STUDENT, None),
+        ("Preferred: M.S. in Statistics.", STUDENT, None),
+        ("Recent graduate with a Bachelor\u2019s or Master\u2019s degree.", STUDENT, None),
+        ("Tools: MS Excel (strong required).", STUDENT, None),
         ("Preferred qualifications:\nPhD in a related field.", STUDENT, None),
         ("PhD required.", {"education": "Master's"}, None),
         ("Must hold an active Top Secret clearance.", STUDENT, "clearance_required"),
