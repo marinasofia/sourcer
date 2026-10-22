@@ -11,6 +11,10 @@ All notable changes to this project are documented here. The format follows
 - The reply size cap was 8 MB, which refused the biggest real boards
   (Anthropic, OpenAI, Databricks, Veeva) and both SimplifyJobs lists. It is
   64 MB now.
+- A required master's written as "Requirements: Recently graduated with a
+  M.S. degree" passed the degree rule: the line split at "M.S." and had no
+  "required". Abbreviated degrees stay whole, a requirements line counts as
+  required, and curly apostrophes and "MS Excel" read correctly.
 
 ### Security
 
