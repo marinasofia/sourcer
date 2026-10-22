@@ -6,6 +6,12 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- The reply size cap was 8 MB, which refused the biggest real boards
+  (Anthropic, OpenAI, Databricks, Veeva) and both SimplifyJobs lists. It is
+  64 MB now.
+
 ### Security
 
 - Penetration tested before publishing; see SECURITY.md. Every outside fetch
