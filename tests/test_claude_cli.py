@@ -6,6 +6,7 @@ import json
 import os
 import stat
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -162,3 +163,36 @@ def test_a_model_that_refuses_thinking_off_is_asked_again_without_it(tmp_path: P
     )
     assert resp.content[0].text == "ok"
     assert (tmp_path / "calls").read_text().split() == ["0", "None"]
+
+
+def test_effort_reaches_the_cli_only_when_asked_and_only_known_levels(tmp_path: Path) -> None:
+    binary = fake_claude(tmp_path, reply('{"ok": true}'))
+    client = claude_cli.ClaudeCodeClient(str(binary))
+    _, err = llm.json_call(client, "S", "u", {"ok": bool}, llm.Usage(), effort="low")  # type: ignore[arg-type]
+    assert err is None
+    argv = json.loads((tmp_path / "call.json").read_text())["argv"]
+    assert argv[argv.index("--effort") + 1] == "low"
+    llm.json_call(client, "S", "u", {"ok": bool}, llm.Usage())  # type: ignore[arg-type]
+    assert "--effort" not in json.loads((tmp_path / "call.json").read_text())["argv"]
+    with pytest.raises(ValueError, match="effort"):
+        client.messages.create(
+            model="m", max_tokens=1, effort="--tools", messages=[{"role": "user", "content": "x"}]
+        )
+
+
+def test_the_messages_api_path_never_sends_effort() -> None:
+    sent: dict = {}
+
+    class Api:
+        class messages:  # the anthropic client's own attribute name
+            @staticmethod
+            def create(**params: object) -> object:
+                sent.update(params)
+                return SimpleNamespace(
+                    content=[SimpleNamespace(type="text", text='{"ok": true}')],
+                    stop_reason="end_turn",
+                    usage=SimpleNamespace(input_tokens=1, output_tokens=1),
+                )
+
+    assert llm.json_call(Api(), "S", "u", {"ok": bool}, llm.Usage(), effort="low")[1] is None  # type: ignore[arg-type]
+    assert "effort" not in sent

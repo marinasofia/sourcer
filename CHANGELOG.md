@@ -31,6 +31,9 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- `json_call(..., effort=)` sets how much the model reasons before it answers.
+  The Claude Code backend passes it as `--effort` (low, medium, high, xhigh,
+  max); the Messages API path ignores it.
 - `sourcer.eligibility.eligible(posting, profile)` is the one function for
   every rule about the candidate. It returns a `Verdict` with a stable rule
   code, the reason in plain words, and the posting's own words when a rule
