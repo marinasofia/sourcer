@@ -121,12 +121,16 @@ jobs:
         with:
           inputs: requirements-dev.txt
           require-hashes: true
-          # filelock CVE-2026-112940 is fixed only in 4.2.1, and the Snowflake
-          # extra (snowflake-connector-python<5) caps filelock below 4. The flaw
-          # is in ReadWriteLock on Linux when another local user can write the
-          # lock's directory; this lockfile installs only for dev and CI. Remove
-          # this once the connector allows filelock 4.
-          ignore-vulns: CVE-2026-112940
+          # filelock flaws fixed only in 4.2.1, which the Snowflake extra
+          # (snowflake-connector-python<5, filelock below 4) cannot take:
+          # CVE-2026-112940 needs a lock directory another local Linux user can
+          # write; CVE-2026-112913 and CVE-2026-112907 are Windows only. This
+          # lockfile installs only for dev and CI on Linux. Remove these once
+          # the connector allows filelock 4.
+          ignore-vulns: |
+            CVE-2026-112940
+            CVE-2026-112913
+            CVE-2026-112907
       - name: audit browser lockfile
         uses: pypa/gh-action-pip-audit@1220774d901786e6f652ae159f7b6bc8fea6d266 # v1.1.0
         with:
