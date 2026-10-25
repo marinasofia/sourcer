@@ -712,11 +712,37 @@ US_PLACE_RE = re.compile(
 def starts_in_wide_window(posting: dict[str, Any]) -> bool:
     """A summer 2027 internship, a role written for 2027 graduates, or any
     full time role when the profile says "full_time_anywhere_us": true."""
-    if names_target_start(posting):
+    if names_target_start(posting) or undated_intern(posting):
         return True
     return is_full_time(posting) and (
         is_grad_program(posting) or bool(_profile_flag("full_time_anywhere_us"))
     )
+
+
+# a term or a year in an internship's title or dates: it names its own start
+_OTHER_TERM_RE = re.compile(
+    r"\b(spring|fall|autumn|winter|year[- ]round|part[- ]time|co-?op|20\d\d)\b", re.I
+)
+# dates outside the summer in its text: "from January 25 through April 16"
+_OFF_SUMMER_DATES_RE = re.compile(
+    r"\b(?:january|february|march|april|september|october|november|december)"
+    r"(?:\s+\d{1,2})?(?:,?\s+20\d\d)?\s+(?:through|to|until)\b"
+    r"|\b(?:spring|fall|autumn|winter)\s+(?:semester|term|quarter|session)\b",
+    re.I,
+)
+
+
+def undated_intern(posting: dict[str, Any], today: date | None = None) -> bool:
+    """An internship that names no term or year, seen before June of the wide
+    year: hiring for it now means the coming summer ("Sales Engineering
+    Intern" in October 2026 is a summer 2027 role). Its text may still say
+    otherwise: a spring term or another year's summer keeps it out."""
+    if is_full_time(posting) or (today or date.today()) >= date(WIDE_YEAR, 6, 1):
+        return False
+    head = " ".join(str(posting.get(k) or "") for k in ("title", "start_date"))
+    text = str(posting.get("description") or "")[:8000]
+    other_year = any(int(m.group(3)) != WIDE_YEAR for m in TERM_RE.finditer(text))
+    return not (_OTHER_TERM_RE.search(head) or _OFF_SUMMER_DATES_RE.search(text) or other_year)
 
 
 # A program of several months for recent graduates ("Technology Analyst Program",
@@ -776,6 +802,10 @@ def _profile_flag(key: str) -> Any:
         _profile_cache.clear()
         _profile_cache[stamp] = load_profile() or {}
     return _profile_cache[stamp].get(key)
+
+
+# "20 Locations": a board that hides its list of places behind a count
+UNNAMED_PLACES_RE = re.compile(r"^\s*(?:\d+|multiple|several|various)\s+locations?\b", re.I)
 
 
 def in_the_us(location: str) -> bool:
@@ -876,7 +906,7 @@ def location_in_scope(location: str, description: str = "", wide: bool = False) 
     if description_location_conflicts(description, wide):
         return False
     loc = location or ""
-    if TARGET_RE.search(loc) or (wide and in_the_us(loc)):
+    if TARGET_RE.search(loc) or (wide and (in_the_us(loc) or UNNAMED_PLACES_RE.search(loc))):
         return True
     if not REMOTE_RE.search(loc):
         return False

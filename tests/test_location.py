@@ -2,6 +2,7 @@
 No API calls; the triage tests use the mocked client from test_parse."""
 
 import json
+from datetime import date
 from unittest.mock import MagicMock
 
 import pytest
@@ -70,6 +71,8 @@ def test_summer_2027_and_2027_graduate_roles_are_in_scope_anywhere_in_the_us():
         {"title": "Data Scientist"},
         {"title": "Intern", "start_date": "Fall 2026"},
         {"title": "New Grad Engineer"},
+        {"title": "Data Analyst Co-op"},
+        {"title": "Sales Engineering Intern", "start_date": "Spring 2027"},
     ):
         assert not config.starts_in_wide_window(p), p
     for loc in ("San Francisco, CA", "Austin, TX", "Seattle", "Boston, Massachusetts"):
@@ -389,7 +392,7 @@ def test_full_time_roles_anywhere_in_the_us_when_the_profile_says_so(tmp_path, m
     profile = tmp_path / "profile.json"
     monkeypatch.setattr(config, "PROFILE_PATH", profile)
     job = {"title": "Machine Learning Engineer", "employment_type": "full_time"}
-    intern = {"title": "Machine Learning Intern"}
+    intern = {"title": "Machine Learning Intern", "start_date": "Fall 2026"}
     assert not config.starts_in_wide_window(job)  # no profile file
     profile.write_text('{"full_time_anywhere_us": true}')
     assert config.starts_in_wide_window(job)
@@ -413,3 +416,28 @@ def test_a_graduate_program_counts_anywhere_in_the_us():
         {"title": "Program Intern", "employment_type": "intern"},
     ):
         assert not (config.is_full_time(p) and config.is_grad_program(p)), p
+
+
+def test_an_undated_internship_seen_before_the_summer_is_a_summer_role():
+    fall = date(2026, 10, 25)
+    assert config.undated_intern({"title": "Sales Engineering Intern (Bellevue, WA)"}, fall)
+    assert config.undated_intern({"title": "Intern - Business Intelligence"}, fall)
+    for p in (
+        {"title": "Data Analyst Co-Op"},
+        {"title": "Operations Intern Spring 2027"},
+        {"title": "Part-time Data Intern"},
+        {"title": "Intern", "start_date": "Fall 2026"},
+        {"title": "Data Analyst"},
+    ):
+        assert not config.undated_intern(p, fall), p
+    spring = "This internship runs from January 25 through April 16 in our SF office."
+    assert not config.undated_intern({"title": "Data Intern", "description": spring}, fall)
+    old = "Join us for Summer 2026."
+    assert not config.undated_intern({"title": "Data Intern", "description": old}, fall)
+    assert not config.undated_intern({"title": "Sales Intern"}, date(2027, 7, 1))  # a later summer
+
+
+def test_a_count_of_locations_is_in_scope_for_a_wide_role_only():
+    for loc in ("20 Locations", "Multiple Locations", "3 locations"):
+        assert config.location_in_scope(loc, wide=True), loc
+        assert not config.location_in_scope(loc), loc
