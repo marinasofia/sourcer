@@ -171,7 +171,9 @@ def _rule_in_person_outside_nyc(parsed: Posting, profile: Profile | None) -> Ver
     del profile
     wm = (parsed.get("work_mode") or "").lower()
     loc = parsed.get("location") or ""
-    if config.starts_in_wide_window(dict(parsed)) and config.in_the_us(loc):
+    if config.starts_in_wide_window(dict(parsed)) and (
+        config.in_the_us(loc) or config.UNNAMED_PLACES_RE.search(loc)
+    ):
         return None  # a summer 2027 or 2027 graduate role: anywhere in the US
     if wm in ("hybrid", "onsite") and loc and not config.TARGET_RE.search(loc):
         return _no("in_person_outside_nyc", f"in-person outside NYC ({wm}: {loc[:48]})")
