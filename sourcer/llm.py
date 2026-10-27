@@ -8,6 +8,7 @@ exactly what changed.
 
 from __future__ import annotations
 
+import html
 import json
 import math
 import re
@@ -42,6 +43,37 @@ PARSE_SYSTEM = """You extract structured data from job postings. Respond with ON
 }
 For employment_type and start_date, look for phrases like "start date", "2027 new grad", "summer 2027", "fall 2026", "internship", "immediate start". Use "unspecified"/null when the posting does not say.
 For work_mode, look for explicit signals: "fully remote", "remote-first" imply remote; "hybrid", "N days in office", "in-office Tuesdays" imply hybrid; "on-site", "in person", "relocation required" imply onsite. Use "unspecified" when the posting does not say."""  # noqa: E501
+
+EXTRACT_SYSTEM = """You read one job posting and copy out its facts. You never judge fit and never summarize: every fact comes with the posting's own words, copied character for character, and code checks those words against the posting. A fact the posting does not state is null or "unspecified" with an empty quote. Respond with ONLY a JSON object matching exactly:
+{
+  "employment_type": string,            // "intern", "part time", "full time", "contract", "unspecified"
+  "employment_quote": string,
+  "start_date": string | null,          // the start term or date as the posting gives it ("Summer 2027", "January 4, 2027", "2027 new grad", "immediate"); null if the posting gives none. A closing date or posting date is not a start date.
+  "start_quote": string,
+  "work_mode": string,                  // "remote", "hybrid", "onsite", "unspecified"
+  "work_mode_quote": string,
+  "years_experience_min": number | null, // the minimum years the posting requires; null if it states none
+  "years_quote": string,
+  "seniority": string,                  // "intern", "entry", "mid", "senior", "unspecified"
+  "seniority_quote": string,
+  "requirements": [string, ...],        // the stated qualifications, each copied from the posting
+  "tech_stack": [string, ...]           // tools and technologies, each exactly as the posting names it
+}
+Each quote is at most 30 words, from the posting text, never from the title."""  # noqa: E501
+EXTRACT_REQUIRED: Schema = {
+    "employment_type": str,
+    "employment_quote": str,
+    "start_date": (str, type(None)),
+    "start_quote": str,
+    "work_mode": str,
+    "work_mode_quote": str,
+    "years_experience_min": (int, float, type(None)),
+    "years_quote": str,
+    "seniority": str,
+    "seniority_quote": str,
+    "requirements": list,
+    "tech_stack": list,
+}
 
 FIT_CHECKS = """Fit checks: compare the posting with the CANDIDATE EVIDENCE below (her approved facts from jobs and projects), like a recruiter. Do not output a score; answer these checks and the score is computed from them.
   "role_fit": "core" when the role's day to day work is the kind of work her evidence shows she has done; "adjacent" when it is a neighbouring kind of work she could step into; "other" when it is a different kind of work.
@@ -613,9 +645,9 @@ def score_basis(skills: dict[str, Any]) -> dict[str, Any]:
     """What a score made now would be made from, to hold a stored trace against."""
     evidence = config.scoring_evidence() or ""
     stub = {"company": "", "title": "", "location": "", "url": "", "description": ""}
-    prompts = [parse_score_prompt(stub, skills)[0]]
-    if evidence:  # the second read and rescore use the checks prompt
-        prompts.append(score_checks_system() + _evidence_suffix(evidence))
+    # a score from the older one-call reader still counts (no mass rescore);
+    # only its facts are not copied to a twin (current_twin)
+    prompts = [parse_score_prompt(stub, skills)[0], score_prompt(skills)]
     return {
         "model": (_scoring_model() if evidence else None) or config.MODEL,
         "evidence": _sha(evidence) if evidence else None,
@@ -647,7 +679,15 @@ def stale_reason(trace: Any, basis: dict[str, Any]) -> str | None:
 def current_twin(skills: dict[str, Any]) -> Any:
     """A check for find_scored_twin: only a twin scored by today's scorer is copied."""
     basis = score_basis(skills)
-    return lambda row: stale_reason(row["score_trace"], basis) is None
+
+    def current(row: Any) -> bool:
+        if stale_reason(row["score_trace"], basis) is not None:
+            return False
+        trace = row["score_trace"]
+        trace = json.loads(trace) if isinstance(trace, str) else trace or {}
+        return "facts" in trace  # its facts were checked against the posting's words
+
+    return current
 
 
 def _read(data: dict[str, Any]) -> dict[str, Any]:
@@ -735,6 +775,15 @@ def _fit(data: dict[str, Any]) -> str:
     return str(data.get("rationale") or "").split(" fit", 1)[0].lower()
 
 
+def score_prompt(skills: dict[str, Any]) -> str:
+    """The fit scorer's system prompt: the checks against her evidence, or the
+    weighted skills list when evidence scoring is off."""
+    evidence = config.scoring_evidence()
+    if evidence:
+        return score_checks_system() + _evidence_suffix(evidence)
+    return SCORE_SYSTEM + _skills_suffix(skills)
+
+
 def score_posting(
     client: anthropic.Anthropic,
     parsed: dict[str, Any],
@@ -810,6 +859,84 @@ def finish_parse_score(data: dict[str, Any], text: str = "") -> dict[str, Any]:
     return score_from_checks(data, text) if "role_fit" in data else data
 
 
+def _words(text: Any) -> str:
+    """Lowercase words only, tags and entities gone: the form quotes are matched in."""
+    t = html.unescape(re.sub(r"<[^>]+>", " ", html.unescape(str(text or ""))))
+    t = t.lower().replace("\u2019", "'").replace("\u2018", "'")
+    return " " + " ".join(re.findall(r"[a-z0-9$%+#']+", t)) + " "
+
+
+def _term_in(term: tuple[int, int], quote: str) -> bool:
+    """A (year, month) start term the quote states: "June 14 through August 13,
+    2027" states June 2027, "the summer 2027 program" states June 2027."""
+    year, month = term
+    names = [n for n, m in config.MONTH_START.items() if m == month]
+    names += [n for n, m in config._SHORT_MONTHS.items() if m == month]
+    names += [n for n, m in config.SEASON_START.items() if m == month]
+    return f" {year} " in quote and any(f" {n} " in quote for n in names)
+
+
+def verify_extract(data: dict[str, Any], text: str) -> dict[str, Any]:
+    """The extracted facts the posting's own words support. A fact whose quote
+    is not in the posting, or does not say what the fact says, becomes unknown:
+    a rule can only act on what the posting states. ``checked`` records which
+    facts held."""
+    seen = _words(text)
+
+    def said(quote: Any) -> str:
+        q = _words(quote)
+        return q if len(q.split()) >= 2 and q in seen else ""
+
+    out: dict[str, Any] = {"checked": {}}
+
+    def keep(field: str, value: Any, quote: str, ok: bool, unknown: Any) -> None:
+        out[field] = value if ok else unknown
+        out["checked"][field] = bool(ok)
+
+    q = said(data.get("employment_quote"))
+    keep("employment_type", data.get("employment_type"), q, bool(q), "unspecified")
+    q, start = said(data.get("start_quote")), data.get("start_date")
+    terms = config.start_terms(str(start or ""))
+    if terms:  # every term the fact names is in the quote: its year, and its month or season
+        ok = bool(q) and all(_term_in(t, q) for t in terms)
+    else:  # "immediate", "flexible": the word itself is in the quote
+        ok = bool(q) and any(w in q for w in _words(start).split() if len(w) > 3)
+    keep("start_date", start, q, bool(start) and ok, None)
+    q = said(data.get("work_mode_quote"))
+    keep("work_mode", data.get("work_mode"), q, bool(q), "unspecified")
+    q, years = said(data.get("years_quote")), data.get("years_experience_min")
+    ok = bool(q) and years is not None and f" {years:g} " in q.replace("+", " ")
+    keep("years_experience_min", years, q, ok, None)
+    q = said(data.get("seniority_quote"))
+    keep("seniority", data.get("seniority"), q, bool(q), "unspecified")
+    out["requirements"] = [str(r) for r in data.get("requirements") or [] if str(r).strip()]
+    named = [t for t in data.get("tech_stack") or [] if _words(t).strip()]
+    out["tech_stack"] = [t for t in named if _words(t) in seen]
+    out["quotes"] = {k: data.get(k) for k in data if k.endswith("_quote") and data.get(k)}
+    return out
+
+
+def extract_posting(
+    client: anthropic.Anthropic, posting: dict[str, Any], usage: Usage
+) -> JsonResult:
+    """The posting's facts, read by the small extraction model and checked
+    against the posting in code (``verify_extract``). No score, no summary."""
+    data, err = json_call(
+        client,
+        EXTRACT_SYSTEM,
+        _posting_user_turn(posting),
+        EXTRACT_REQUIRED,
+        usage,
+        max_tokens=1500,
+        model=config.EXTRACT_MODEL,
+    )
+    if data is None:
+        return None, err
+    parsed = verify_extract(data, str(posting.get("description") or ""))
+    parsed.update(title=posting["title"], location=posting.get("location") or "")
+    return parsed, None
+
+
 def parse_and_score(
     client: anthropic.Anthropic,
     posting: dict[str, Any],
@@ -818,27 +945,53 @@ def parse_and_score(
     *,
     model: str | None = None,
     steady: bool = True,
+    gate: Any = None,
 ) -> JsonResult:
-    """One call replacing parse_posting + score_posting on the pipeline path:
-    the posting text is sent once instead of its extraction being re-sent.
-    ``model`` overrides the scoring model (a quick first look); ``steady=False``
-    skips the second look near the texting cutoff, for a person reading the
-    posting herself rather than a text deciding for her."""
-    system, user = parse_score_prompt(posting, skills)
-    model = model or (_scoring_model() if config.scoring_evidence() else None)
-    data, err = json_call(
-        client, system, user, parse_score_required(), usage, max_tokens=1500, model=model
-    )
+    """Two workers: the extraction model copies the posting's facts with its
+    own words (checked in code), then the scoring model judges fit. ``gate``
+    (the rules, given the checked facts) returns a reason to stop before the
+    score: an excluded posting never costs a scoring call. ``model``
+    overrides the scoring model; ``steady=False`` skips the second look near
+    the texting cutoff."""
+    parsed, err = extract_posting(client, posting, usage)
+    if parsed is None:
+        return None, err
+    parsed["description"] = posting.get("description")
+    reason = gate(parsed) if gate else None
+    if reason:
+        return {**parsed, "score": 0, "rationale": f"excluded: {reason}"}, None
+    if model:
+        with _scoring_model_as(model):
+            data, err = score_posting(client, parsed, skills, usage, steady=steady)
+    else:
+        data, err = score_posting(client, parsed, skills, usage, steady=steady)
     if data is None:
         return None, err
     text = str(posting.get("description") or "")
-    data = finish_parse_score(data, text)
-    data["score_trace"] = trace_of(data, text, model, "one read", system)
-    if config.scoring_evidence() and steady:
-        parsed = {k: data.get(k) for k in ("title", "requirements", "tech_stack", "seniority")}
-        parsed["description"] = posting.get("description")
-        data = _steadied(client, parsed, skills, usage, data)
-    return data, None
+    trace = data.get("score_trace") or trace_of(
+        data, text, config.MODEL, "one read", score_prompt(skills)
+    )
+    trace["facts"] = {
+        "model": config.EXTRACT_MODEL,
+        "checked": parsed["checked"],
+        "quotes": parsed["quotes"],
+    }
+    # the checked facts, never the scorer's echo of them
+    return {**data, **parsed, "score_trace": trace}, None
+
+
+class _scoring_model_as:
+    """The scoring model for one call (a quick first look on a smaller model)."""
+
+    def __init__(self, model: str) -> None:
+        self.model = model
+
+    def __enter__(self) -> None:
+        self.was = config.SCORE_MODEL
+        config.SCORE_MODEL = self.model
+
+    def __exit__(self, *exc: Any) -> None:
+        config.SCORE_MODEL = self.was
 
 
 def triage_titles(client: anthropic.Anthropic, titles: list[str], usage: Usage) -> list[int]:

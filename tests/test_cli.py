@@ -11,7 +11,7 @@ import requests
 from sourcer import alerts, batch, db, rescore, score_listings, track
 from sourcer.apply import verify
 from sourcer.apply.recheck import Official
-from tests.conftest import GOOD_PARSE_SCORE, SKILLS, current_trace, make_client
+from tests.conftest import GOOD_PARSE_SCORE, SKILLS, current_trace, make_client, worker_replies
 
 # --------------------------------------------------------------- track
 
@@ -325,9 +325,10 @@ def test_score_listings_main_happy_and_cap(tmp_db, paths, posting_row, monkeypat
     monkeypatch.setattr(score_listings.db, "connect", lambda: tmp_db)
     monkeypatch.setattr(score_listings.net, "get", lambda *a, **k: Page())
     monkeypatch.setattr(
-        score_listings.llm, "get_client", lambda: make_client([json.dumps(GOOD_PARSE_SCORE)] * 2)
+        score_listings.llm, "get_client", lambda: make_client(worker_replies() * 2)
     )
-    monkeypatch.setattr(score_listings.config, "COST_CAP_USD", 0.0003)
+    # room for one posting's two calls (facts, then fit), not a second posting
+    monkeypatch.setattr(score_listings.config, "COST_CAP_USD", 0.0006)
     assert score_listings.main([]) == 0
     out = capsys.readouterr().out
     assert "[1/2]" in out and "cost cap reached after 1" in out

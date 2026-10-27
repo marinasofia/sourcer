@@ -58,6 +58,9 @@ def scoring_evidence() -> str:
 
 
 MODEL = os.environ.get("SOURCER_MODEL", "claude-haiku-4-5-20251001")
+# The worker that only reads a posting's facts (dates, place, level), each
+# with the posting's own words; code checks the words before any rule uses them.
+EXTRACT_MODEL = os.environ.get("SOURCER_EXTRACT_MODEL", "claude-haiku-5-5")
 # "api" (Messages API, needs ANTHROPIC_API_KEY) or "claude-code" (the claude
 # CLI on the operator's subscription login; single operator, no batches).
 LLM_BACKEND = os.environ.get("SOURCER_LLM", "api")

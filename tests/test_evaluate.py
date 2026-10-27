@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 
 from sourcer import config, evaluate, llm
-from tests.conftest import GOOD_PARSE_SCORE, PROFILE, SKILLS, make_client
+from tests.conftest import GOOD_PARSE_SCORE, PROFILE, SKILLS, make_client, worker_replies
 
 
 def test_shipped_labelled_set_has_no_mismatches() -> None:
@@ -95,7 +95,7 @@ def test_model_report_scores_only_records_with_bands_and_inputs(
             },
         },
     ]
-    client = make_client([json.dumps(GOOD_PARSE_SCORE), "garbage", "garbage"])
+    client = make_client([*worker_replies(), "garbage", "garbage"])
     report = evaluate.evaluate_model(records, client, SKILLS, llm.Usage())
     assert report["scored"] == 1
     assert report["failed"] == 1
@@ -141,7 +141,7 @@ def test_main_with_model_flag(
 ) -> None:
     monkeypatch.setattr(config, "COST_CAP_USD", 10.0)
     monkeypatch.setattr(
-        evaluate.llm, "get_client", lambda: make_client([json.dumps(GOOD_PARSE_SCORE)])
+        evaluate.llm, "get_client", lambda: make_client(worker_replies())
     )
     labelled = paths / "l.json"
     labelled.write_text(
