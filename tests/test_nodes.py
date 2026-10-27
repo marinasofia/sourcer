@@ -16,7 +16,14 @@ from sourcer.eligibility import RULES
 from sourcer.pipeline import dedupe, filters, output, scoring, source
 from sourcer.pipeline.filters import _rule_eligibility
 from sourcer.pipeline.state import State
-from tests.conftest import GOOD_PARSE_SCORE, PROFILE, SKILLS, current_trace, make_client
+from tests.conftest import (
+    GOOD_PARSE_SCORE,
+    PROFILE,
+    SKILLS,
+    current_trace,
+    make_client,
+    worker_replies,
+)
 
 
 def raw_posting(**over: Any) -> dict[str, Any]:
@@ -257,10 +264,23 @@ def test_parse_reads_again_when_the_twin_is_from_an_older_scorer(tmp_db, posting
     sqlitedb.insert_posting(tmp_db, twin)
     tmp_db.commit()
     p = raw_posting(hash="new", url="https://x/new")
-    client = make_client([json.dumps(GOOD_PARSE_SCORE)])
+    client = make_client(worker_replies())
     out = scoring.parse_node(base_state(tmp_db, client, new_postings=[p]))
-    assert client.messages.create.call_count == 1  # read again, never copied
+    assert client.messages.create.call_count == 2  # read again (facts, then fit), never copied
     assert "reused_from" not in (out["parsed"][0].get("score_trace") or {})
+
+
+def test_a_twin_whose_facts_were_never_checked_is_read_again(tmp_db, posting_row):
+    old = current_trace(SKILLS)
+    del old["facts"]  # scored by the older one-call reader: a summary, not the posting's words
+    twin = posting_row(title="AI Engineer Intern", url="https://x/old", score=91)
+    twin.update(hash="old", score_trace=old)
+    sqlitedb.insert_posting(tmp_db, twin)
+    tmp_db.commit()
+    client = make_client(worker_replies())
+    p = raw_posting(hash="new", url="https://x/new")
+    out = scoring.parse_node(base_state(tmp_db, client, new_postings=[p]))
+    assert client.messages.create.call_count == 2 and out["parsed"][0]["score"] == 88
 
 
 def test_parse_does_not_reuse_excluded_twin(tmp_db, posting_row):
@@ -275,9 +295,9 @@ def test_parse_does_not_reuse_excluded_twin(tmp_db, posting_row):
     sqlitedb.insert_posting(tmp_db, twin)
     tmp_db.commit()
     p = raw_posting(hash="new", url="https://x/new")
-    client = make_client([json.dumps(GOOD_PARSE_SCORE)])
+    client = make_client(worker_replies())
     out = scoring.parse_node(base_state(tmp_db, client, new_postings=[p]))
-    assert client.messages.create.call_count == 1
+    assert client.messages.create.call_count == 2
     assert out["parsed"][0]["score"] == 88
 
 
@@ -292,7 +312,7 @@ def test_parse_skips_on_cost_cap(tmp_db, monkeypatch):
 
 def test_a_posting_without_text_is_read_first_and_never_scored_from_its_title(tmp_db, monkeypatch):
     monkeypatch.setattr(scoring, "MIN_TEXT", 400)
-    client = make_client([json.dumps(GOOD_PARSE_SCORE)])
+    client = make_client(worker_replies())
     bare = raw_posting(hash="h", description="")  # a Workday card whose detail was never opened
     out = scoring.parse_node(base_state(tmp_db, client, new_postings=[bare]))
     client.messages.create.assert_not_called()  # no score guessed from the title
@@ -301,7 +321,8 @@ def test_a_posting_without_text_is_read_first_and_never_scored_from_its_title(tm
     state = base_state(tmp_db, client, new_postings=[raw_posting(hash="h2", description="")])
     state["read_posting"] = lambda url: page
     out = scoring.parse_node(state)
-    client.messages.create.assert_called_once()  # read from its page, then scored
+    # read from its page; the rules stop the 3+ years role on its facts, before any fit score
+    assert client.messages.create.call_count == 1
     assert out["parsed"][0]["description"] == page
 
 
@@ -322,7 +343,7 @@ def test_parse_records_failure(tmp_db):
 
 def test_parse_success_trusts_board_fields(tmp_db):
     reply = {**GOOD_PARSE_SCORE, "title": "Model echo", "location": "Mars"}
-    client = make_client([json.dumps(reply)])
+    client = make_client(worker_replies(reply))
     p = raw_posting(hash="h", title="Board Title", location="New York, NY")
     out = scoring.parse_node(base_state(tmp_db, client, new_postings=[p]))
     rec = out["parsed"][0]
@@ -566,7 +587,7 @@ def test_score_node_does_not_stack_timing_suffix_on_a_twin():
 
 def test_a_crashing_model_call_skips_only_that_posting(tmp_db):
     """A timed out Claude CLI call raises; the run keeps going and counts it."""
-    client = make_client([json.dumps(GOOD_PARSE_SCORE)])
+    client = make_client(worker_replies())
     ok = client.messages.create.side_effect
     client.messages.create.side_effect = [RuntimeError("claude CLI timed out after 180s"), *ok]
     posts = [

@@ -1,8 +1,10 @@
 """Scoring: the parse and score nodes, plus the service shared by HTTP and MCP.
 
 parse: a senior title is excluded from the title alone, an already scored
-twin transfers its score, and what remains goes to the model in one call
-that parses and scores. score: deterministic exclusions, the timing flag,
+twin transfers its score, and what remains is read by two workers: a small
+model copies the posting's facts with its own words (checked in code), the
+rules run on those facts, and only a posting that passes is scored for fit.
+score: deterministic exclusions, the timing flag,
 and level fit (see ``filters``).
 """
 
@@ -214,7 +216,17 @@ def parse_node(state: State) -> State:
             _set_aside(state, p, "skipped: spending cap reached", place=n)
             continue
         try:
-            data, err = llm.parse_and_score(client, p, state["skills"], usage)
+            # the rules read the checked facts first: an excluded posting is never scored
+            data, err = llm.parse_and_score(
+                client,
+                p,
+                state["skills"],
+                usage,
+                gate=lambda facts, p=p: eligible(
+                    {**facts, "company": p["company"]}, state.get("profile"), EXCLUSION_RULES
+                ).reason
+                or None,
+            )
         except (anthropic.APIError, RuntimeError) as exc:
             # a timed out or failed model call costs this posting, never the run
             data, err = None, f"model call failed: {exc}"

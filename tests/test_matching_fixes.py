@@ -173,10 +173,11 @@ def test_parse_and_score_also_steadies(evidence_on: Path, monkeypatch: pytest.Mo
              "start_date": None,
              "years_experience_min": None, "work_mode": "onsite",
              **_checks(["yes", "yes", "partly", "no"])}  # fmt: skip
-    replies = iter([(first, None), (_checks(["no", "no", "no", "no"]), None)])
+    replies = iter([(first, None), (first, None), (_checks(["no", "no", "no", "no"]), None)])
     monkeypatch.setattr(llm, "json_call", lambda *a, **kw: next(replies))
     data, _ = llm.parse_and_score(None, POSTING, SKILLS, llm.Usage())  # type: ignore[arg-type]
-    assert data is not None and data["score"] == 55 and data["employment_type"] == "intern"
+    assert data is not None and data["score"] == 55
+    assert data["employment_type"] == "unspecified"  # no quote from the posting: unknown
     trace = data["score_trace"]  # both reads kept, the lower one marked, and why
     assert [r["score"] for r in trace["reads"]] == [80, 55] and trace["kept"] == 1
     assert trace["rule"].startswith("near the texting cutoff")
@@ -206,7 +207,8 @@ def test_a_person_reading_gets_one_look_on_the_model_asked_for(
         model="claude-haiku-4-5",
         steady=False,
     )
-    assert data is not None and models == ["claude-haiku-4-5"]  # one call, no second look
+    # the facts on the extraction model, then one fit call on the model asked for, no second look
+    assert data is not None and models == [config.EXTRACT_MODEL, "claude-haiku-4-5"]
 
 
 @pytest.mark.parametrize(

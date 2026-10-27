@@ -9,7 +9,7 @@ from sourcer import config, llm, sqlitedb
 from sourcer.digest import render_digest
 from sourcer.main import build_state, run
 from sourcer.pipeline import graph
-from tests.conftest import FROZEN_NOW, GOOD_PARSE_SCORE, make_client
+from tests.conftest import FROZEN_NOW, GOOD_PARSE_SCORE, make_client, worker_replies
 
 GREENHOUSE = {
     "jobs": [
@@ -85,7 +85,18 @@ def test_full_run_writes_rows_run_log_and_digest(paths, monkeypatch):
         "seniority": "entry",
         "score": 75,
     }
-    client = make_client([TITLES_OK, json.dumps(GOOD_PARSE_SCORE), json.dumps(analyst)])
+    client = make_client(
+        [
+            TITLES_OK,
+            *worker_replies(GOOD_PARSE_SCORE, {"start_quote": "Summer 2027 internship"}),
+            # the rules stop the immediate full time role on its checked facts: never scored
+            *worker_replies(
+                analyst,
+                {"start_quote": "Start immediately, full time", "employment_quote": "full time"},
+                scored=False,
+            ),
+        ]
+    )
     with patch("sourcer.net.get", side_effect=fake_get):
         final = run(build_state(client))
 
@@ -96,8 +107,8 @@ def test_full_run_writes_rows_run_log_and_digest(paths, monkeypatch):
     assert stats["new_postings"] == 2
     assert stats["parse_failures"] == 0
     assert stats["excluded_count"] == 1  # immediate-start full time
-    # one title check, two reads; the senior title never reached the model
-    assert client.messages.create.call_count == 3
+    # one title check, two fact reads, one fit score; the senior title never reached the model
+    assert client.messages.create.call_count == 4
     assert stats["duration_s"] >= 0
 
     conn = sqlitedb.connect(config.DB_PATH)
@@ -121,8 +132,8 @@ def test_second_run_pays_nothing_for_seen_postings(paths, monkeypatch):
     monkeypatch.setattr(config, "COST_CAP_USD", 2.5)
     replies = [
         TITLES_OK,
-        json.dumps(GOOD_PARSE_SCORE),
-        json.dumps({**GOOD_PARSE_SCORE, "score": 40}),
+        *worker_replies(),
+        *worker_replies({**GOOD_PARSE_SCORE, "score": 40}),
     ]
     with patch("sourcer.net.get", side_effect=fake_get):
         run(build_state(make_client(replies)))

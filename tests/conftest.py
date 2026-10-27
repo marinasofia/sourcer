@@ -88,6 +88,28 @@ GOOD_PARSE_SCORE: dict[str, Any] = {
 }
 
 
+def worker_replies(
+    parse_score: dict[str, Any] | None = None,
+    quotes: dict[str, str] | None = None,
+    *,
+    scored: bool = True,
+) -> list[str]:
+    """The two worker replies for one posting: the extraction (each fact with
+    the posting's words in ``quotes``; a fact without them is read as unknown),
+    then the fit score unless the rules stop the posting first."""
+    ps = parse_score or GOOD_PARSE_SCORE
+    keys = ("employment_type", "start_date", "work_mode", "years_experience_min", "seniority",
+            "requirements", "tech_stack")  # fmt: skip
+    quote_keys = ("employment_quote", "start_quote", "work_mode_quote", "years_quote",
+                  "seniority_quote")  # fmt: skip
+    extraction = {k: ps.get(k) for k in keys}
+    extraction.update({k: (quotes or {}).get(k, "") for k in quote_keys})
+    out = [json.dumps(extraction)]
+    if scored:
+        out.append(json.dumps({"score": ps["score"], "rationale": ps["rationale"]}))
+    return out
+
+
 def make_client(replies: Iterable[str], *, cache_write: int = 0, cache_read: int = 0) -> MagicMock:
     """A fake client whose messages.create returns the given texts in order."""
     client = MagicMock()
@@ -176,4 +198,5 @@ def current_trace(skills: dict[str, Any]) -> dict[str, Any]:
     """A score trace that today's scorer would have written, so a twin counts as current."""
     basis = llm.score_basis(skills)
     note = {k: basis[k] for k in ("model", "evidence", "scorer")}
-    return {"input": {**note, "prompt": next(iter(basis["prompts"]))}, "reads": []}
+    facts = {"model": config.EXTRACT_MODEL, "checked": {}, "quotes": {}}
+    return {"input": {**note, "prompt": next(iter(basis["prompts"]))}, "reads": [], "facts": facts}

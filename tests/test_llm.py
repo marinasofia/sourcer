@@ -10,7 +10,7 @@ import anthropic
 import pytest
 
 from sourcer import config, llm
-from tests.conftest import GOOD_PARSE_SCORE, SKILLS, make_client
+from tests.conftest import GOOD_PARSE_SCORE, SKILLS, make_client, worker_replies
 
 
 def test_usage_cost_includes_cache_tokens() -> None:
@@ -81,17 +81,70 @@ def test_extract_json_error_strings() -> None:
     )
 
 
-def test_parse_and_score_uses_combined_prompt() -> None:
-    client = make_client([json.dumps(GOOD_PARSE_SCORE)])
-    posting = {"company": "C", "title": "T", "location": "L", "url": "u", "description": "d"}
+POSTING_TEXT = (
+    "<p>Revenue Operations Intern. This internship starts January 4, 2027 and runs full time "
+    "for four months. Hybrid, three days a week in our Toronto office. Skills: SQL, Salesforce.</p>"
+)
+
+
+def test_parse_and_score_reads_the_facts_then_scores_the_fit() -> None:
+    client = make_client(worker_replies(GOOD_PARSE_SCORE, {"start_quote": "Summer 2027"}))
+    posting = {"company": "C", "title": "T", "location": "L", "url": "u",
+               "description": "d. Summer 2027 internship."}  # fmt: skip
     data, err = llm.parse_and_score(client, posting, SKILLS, llm.Usage())
     assert err is None and data is not None and data["score"] == 88
-    kwargs = client.messages.create.call_args.kwargs
-    assert kwargs["system"][0]["text"].startswith(llm.PARSE_SCORE_SYSTEM)
-    assert "Candidate skills" in kwargs["system"][0]["text"]
-    content = kwargs["messages"][0]["content"]
+    assert data["start_date"] == "summer 2027" and data["checked"]["start_date"]
+    read, fit = (c.kwargs for c in client.messages.create.call_args_list)
+    assert read["model"] == config.EXTRACT_MODEL
+    assert read["system"][0]["text"].startswith(llm.EXTRACT_SYSTEM)
+    content = read["messages"][0]["content"]
     assert content.startswith(llm.UNTRUSTED_NOTE) and "Company: C\nTitle: T" in content
-    assert content.endswith("<posting>\nd\n</posting>")
+    assert "Candidate skills" in fit["system"][0]["text"]
+
+
+def test_a_fact_the_posting_does_not_state_in_its_own_words_is_unknown() -> None:
+    reply = {
+        "employment_type": "full time", "employment_quote": "runs full time for four months",
+        "start_date": "January 4, 2027", "start_quote": "starts January 4, 2027",
+        "work_mode": "hybrid", "work_mode_quote": "Hybrid, three days a week",
+        "years_experience_min": 2, "years_quote": "two years preferred",
+        "seniority": "intern", "seniority_quote": "Revenue Operations Intern",
+        "requirements": ["SQL"], "tech_stack": ["SQL", "Salesforce", "Looker"],
+    }  # fmt: skip
+    got = llm.verify_extract(reply, POSTING_TEXT)
+    assert got["start_date"] == "January 4, 2027" and got["work_mode"] == "hybrid"
+    assert got["employment_type"] == "full time" and got["seniority"] == "intern"
+    assert got["years_experience_min"] is None  # quoted words not in the posting
+    assert got["tech_stack"] == ["SQL", "Salesforce"]  # Looker is never named
+    summary = {**reply, "start_date": "Summer 2027", "start_quote": "starts January 4, 2027"}
+    # the quote says otherwise
+    assert llm.verify_extract(summary, POSTING_TEXT)["start_date"] is None
+    zillow = "Our summer internship program, running June 14 through August 13, 2027, is hybrid."
+    june = {**reply, "start_date": "June 14, 2027",
+            "start_quote": "running June 14 through August 13, 2027"}  # fmt: skip
+    # the day and the year sit apart in the posting's sentence
+    assert llm.verify_extract(june, zillow)["start_date"] == "June 14, 2027"
+    closing = {**reply, "start_date": "October 7, 2026",
+               "start_quote": "open until October 7, 2026"}  # fmt: skip
+    assert llm.verify_extract(closing, POSTING_TEXT)["start_date"] is None  # not in the posting
+
+
+def test_the_rules_stop_a_posting_before_it_costs_a_score() -> None:
+    reply = {"employment_type": "intern", "employment_quote": "Revenue Operations Intern",
+             "start_date": "January 4, 2027", "start_quote": "starts January 4, 2027",
+             "work_mode": "hybrid", "work_mode_quote": "", "years_experience_min": None,
+             "years_quote": "", "seniority": "intern", "seniority_quote": "",
+             "requirements": [], "tech_stack": []}  # fmt: skip
+    client = make_client([json.dumps(reply)])
+    posting = {"company": "C", "title": "Intern", "location": "L", "url": "u",
+               "description": POSTING_TEXT}  # fmt: skip
+    seen: list[dict] = []
+    data, err = llm.parse_and_score(
+        client, posting, SKILLS, llm.Usage(), gate=lambda f: seen.append(f) or "starts in winter"
+    )
+    assert err is None and data is not None and data["score"] == 0
+    assert data["rationale"] == "excluded: starts in winter"
+    assert client.messages.create.call_count == 1 and seen[0]["start_date"] == "January 4, 2027"
 
 
 def test_score_posting_sends_extracted_fields_only() -> None:
