@@ -73,6 +73,18 @@ def test_json_call_runs_through_the_cli_locked_down(
     assert call["key"] is None  # subscription login, never the API key
     assert call["think"] == "0"
     assert not os.path.exists(call["cwd"])  # ran in a throwaway directory
+    assert "--allowedTools" not in argv
+
+
+def test_a_web_search_call_gets_only_the_web_tools(tmp_path: Path) -> None:
+    binary = fake_claude(tmp_path, reply("{}"))
+    claude_cli.ClaudeCodeClient(str(binary)).messages.create(
+        model="m", max_tokens=1, messages=[{"role": "user", "content": "x"}],
+        tools=[{"type": "web_search_20260209", "name": "web_search"}],
+    )  # fmt: skip
+    argv = json.loads((tmp_path / "call.json").read_text())["argv"]
+    assert argv[argv.index("--tools") + 1] == "WebSearch,WebFetch"
+    assert argv[argv.index("--allowedTools") + 1] == "WebSearch,WebFetch"
 
 
 def test_retry_turns_become_one_prompt() -> None:
