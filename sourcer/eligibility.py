@@ -233,7 +233,8 @@ def _rule_internship_before_availability(
     available = (profile or {}).get("earliest_start_internship")
     if not available or config.is_full_time(dict(parsed)):
         return None
-    when = str(parsed.get("start_date") or parsed.get("title") or "")
+    # the title and the stated start date together: either may carry the term
+    when = " ; ".join(str(parsed.get(k)) for k in ("start_date", "title") if parsed.get(k))
     if config.starts_before(when, str(available)):
         return _no(
             "internship_before_availability", f"internship starts before availability ({when[:60]})"

@@ -214,6 +214,8 @@ def test_a_us_government_track_title_needs_citizenship(title: str, dropped: bool
     [
         ("Product Management Intern (Winter 2027)", "January 2027", True),
         ("Product Management Intern (Winter 2027)", None, True),  # the title says when
+        ("Revenue Operations Intern (Winter, 2027)", "January 4, 2027", True),  # Cohere, Oct 2026
+        ("Revenue Operations Intern (Winter, 2027)", "Starts in the new year", True),  # the title still says
         ("Data Science Intern, Spring 2027", "Spring 2027", True),
         ("Product Management Intern", "Summer 2027", False),
         ("Product Management Intern", "May 2027", False),
