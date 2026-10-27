@@ -7,7 +7,8 @@ is one scripted ``claude -p`` run on the operator's own login. The client
 mimics the one ``messages.create`` surface ``llm.json_call`` uses, so every
 caller works unchanged. Batches need the API and are refused.
 
-Every call is locked down: no tools, no MCP servers, no user or plugin
+Every call is locked down: no tools (a call that asks for web search gets the
+web search and fetch tools only), no MCP servers, no user or plugin
 settings (so no hooks fire), no slash commands, no saved session, and an
 empty working directory. ``ANTHROPIC_API_KEY`` is removed from the child
 environment so the CLI uses the subscription login, not a key, and extended
@@ -59,6 +60,7 @@ def _prompt(messages: list[dict[str, Any]]) -> str:
 
 
 FALLBACK_BINARIES = ("/opt/homebrew/bin/claude", "/usr/local/bin/claude")
+WEB_TOOLS = "WebSearch,WebFetch"
 
 
 # what the CLI needs to run and sign in; the run's other secrets (Telegram,
@@ -135,10 +137,14 @@ class _Messages:
         raise RuntimeError("batches need the Messages API; unset SOURCER_LLM=claude-code")
 
     def create(self, **params: Any) -> SimpleNamespace:
+        # a call that asks for the web search server tool gets the CLI's own
+        # web tools and nothing else: no files, no shell
+        web = any(str(t.get("type", "")).startswith("web_search") for t in params.get("tools") or [])
         argv = [
             self.binary, "-p",
             "--model", params["model"],
-            "--tools", "",
+            "--tools", WEB_TOOLS if web else "",
+            *(["--allowedTools", WEB_TOOLS] if web else []),
             "--setting-sources", "project",
             "--strict-mcp-config",
             "--disable-slash-commands",
