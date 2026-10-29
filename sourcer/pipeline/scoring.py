@@ -222,10 +222,12 @@ def parse_node(state: State) -> State:
                 p,
                 state["skills"],
                 usage,
-                gate=lambda facts, p=p: eligible(
-                    {**facts, "company": p["company"]}, state.get("profile"), EXCLUSION_RULES
-                ).reason
-                or None,
+                gate=lambda facts, p=p: (
+                    eligible(
+                        {**facts, "company": p["company"]}, state.get("profile"), EXCLUSION_RULES
+                    ).reason
+                    or None
+                ),
             )
         except (anthropic.APIError, RuntimeError) as exc:
             # a timed out or failed model call costs this posting, never the run
