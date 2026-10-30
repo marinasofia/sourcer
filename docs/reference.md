@@ -30,8 +30,9 @@ location check after parsing. A zero-dollar run does not produce AI scores.
 | Variable | Default | Purpose |
 |---|---|---|
 | `ANTHROPIC_API_KEY` | required | model calls |
-| `SOURCER_MODEL` | `claude-haiku-4-5-20251001` | model id for parsing |
-| `SOURCER_SCORE_MODEL` | the parse model | model id for the fit checks |
+| `SOURCER_MODEL` | `claude-haiku-4-5-20251001` | model id for the fit checks and title triage |
+| `SOURCER_EXTRACT_MODEL` | `claude-haiku-5-5` | model id for the extraction worker that copies a posting's facts with its own words before the rules run |
+| `SOURCER_SCORE_MODEL` | `SOURCER_MODEL` | model id for the fit checks and title triage when it should differ from `SOURCER_MODEL` |
 | `SOURCER_LLM` | `api` | `claude-code` runs calls through the Claude Code CLI instead of the API |
 | `SOURCER_RUN_MINUTES` | no limit | no new model call after this many minutes in one run |
 | `SOURCER_BROWSER` | `0` | `1` reads careers pages that only render with scripts, in a sandboxed headless Chromium |

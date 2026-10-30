@@ -1,17 +1,21 @@
 # Model card: Sourcer scoring
 
-Sourcer does not train a model. It uses a hosted general-purpose model
-(Claude Haiku 4.5 by default, `SOURCER_MODEL`) for two narrow tasks and wraps
-them in deterministic rules. This card documents that use so its behaviour,
+Sourcer does not train a model. It uses hosted general-purpose models for
+three narrow tasks and wraps them in deterministic rules. The extraction
+worker runs on `SOURCER_EXTRACT_MODEL` (default `claude-haiku-5-5`); fit
+scoring and title triage run on `SOURCER_SCORE_MODEL` when it is set,
+otherwise on `SOURCER_MODEL` (default `claude-haiku-4-5-20251001`). This card documents that use so its behaviour,
 limits, and failure modes are explicit.
 
 ## Intended use
 
-- Extract structured fields from a job posting: title, location,
-  requirements, seniority, tech stack, employment type, start date, minimum
-  years, work mode.
-- Score the extraction 0 to 100 against one candidate's weighted skills
-  vector with a one-line rationale.
+- Extract facts from a job posting: start date, location, work mode,
+  seniority, minimum years, requirements and tech stack, each with the
+  posting's own words. Code keeps only the facts the quoted words support
+  and runs the rules on them (ADR 0012).
+- Score fit 0 to 100 for a posting that passed the rules, as fixed yes or no
+  checks against the candidate's evidence with a quote for each, turned into
+  the score in code, with a one-line rationale.
 - Triage titles the role regex missed, once per run, batched.
 
 Out of scope: ranking candidates, making hiring decisions, generating

@@ -44,7 +44,10 @@ def _token(monkeypatch):
 
 @pytest.fixture
 def server():
-    httpd = serve.Server(("127.0.0.1", 0), serve.Handler)
+    try:
+        httpd = serve.Server(("127.0.0.1", 0), serve.Handler)
+    except PermissionError as exc:  # a sandbox that forbids binding a port
+        pytest.skip(f"cannot bind a local port here: {exc}")
     thread = threading.Thread(target=httpd.serve_forever, daemon=True)
     thread.start()
     yield f"http://127.0.0.1:{httpd.server_address[1]}"

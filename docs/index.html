@@ -185,8 +185,9 @@ footer { margin-top: 48px; padding-top: 18px; border-top: 1px solid var(--line);
 </div>
 
 <script>
-const esc = s => (s || "").replace(/[&<>"]/g, c =>
-  ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c]));
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c =>
+  ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]));
+const num = n => (Number.isFinite(Number(n)) ? Number(n) : 0);
 let DATA = null, view = "list", type = "", companyFilter = null, band = null;
 
 const BANDS = [
@@ -207,10 +208,10 @@ fetch("showcase.json").then(r => r.json()).then(d => {
     [s.companies_covered, "companies"],
     [s.roles_scored, "roles scored"],
     [s.listings_tracked, "listings tracked"],
-    [(s.schema_failure_rate * 100).toFixed(1) + "%", "schema failure rate", true],
+    [(num(s.schema_failure_rate) * 100).toFixed(1) + "%", "schema failure rate", true],
   ];
   document.getElementById("summary").innerHTML = cells.map(([v, k, good]) =>
-    `<div class="cell"><div class="v${good ? " good" : ""}">${v ?? "n/a"}</div><div class="k">${k}</div></div>`).join("");
+    `<div class="cell"><div class="v${good ? " good" : ""}">${esc(v ?? "n/a")}</div><div class="k">${esc(k)}</div></div>`).join("");
   render();
 });
 
@@ -248,7 +249,7 @@ function renderViz(base) {
         const on = companyFilter === name ? " on" : "";
         return `<div class="bubble${on}" style="width:${d}px;height:${d}px"
           title="${esc(name)}: ${n}" data-sector="${esc(name)}">
-          <span class="bn" style="font-size:${Math.max(13, d / 4.4)}px">${n}</span>
+          <span class="bn" style="font-size:${Math.max(13, d / 4.4)}px">${num(n)}</span>
           <span class="bl">${esc(name)}</span></div>`;
       }).join("") + (rest.length ? `<div class="bubble rest" style="width:72px;height:72px"
         title="${rest.length} sectors with one match">
@@ -292,15 +293,15 @@ function render() {
   const chips = [];
   if (companyFilter) chips.push(`<span class="chipfilter" onclick="companyFilter=null;render()">${esc(companyFilter)}</span>`);
   if (band) chips.push(`<span class="chipfilter" onclick="band=null;render()">score ${esc(band)}</span>`);
-  document.getElementById("count").innerHTML = rows.length + " postings " + chips.join(" ");
+  document.getElementById("count").innerHTML = num(rows.length) + " postings " + chips.join(" ");
   document.getElementById("grid").innerHTML = rows.length ? rows.map(p => `
-    <article class="rowcard ${p.score >= 85 ? "w-warm" : p.score >= 70 ? "w-steady" : p.score >= 50 ? "w-cooling" : "w-cold"}">
+    <article class="rowcard ${num(p.score) >= 85 ? "w-warm" : num(p.score) >= 70 ? "w-steady" : num(p.score) >= 50 ? "w-cooling" : "w-cold"}">
       <div class="top"><span class="co">${esc(p.sector)}</span>
         <span class="tag ${esc(p.type).replace(" ", "")}">${esc(p.type)}</span></div>
       <h3 class="role">${esc(p.role)}</h3>
       <span class="loc">${esc(p.location || "")}</span>
-      <div class="scorewrap"><span class="scoreno">${p.score}</span>
-        <div class="track"><div class="fill" style="width:${p.score}%"></div></div></div>
+      <div class="scorewrap"><span class="scoreno">${num(p.score)}</span>
+        <div class="track"><div class="fill" style="width:${num(p.score)}%"></div></div></div>
       <p class="blurb" title="click to expand">${esc(p.blurb)}</p>
       <span class="dates">${[p.start ? "start: " + esc(p.start) : "", p.posted ? "posted " + esc(p.posted) : ""].filter(Boolean).join(" · ")}</span>
     </article>`).join("") : `<div class="empty">No postings match these filters.</div>`;

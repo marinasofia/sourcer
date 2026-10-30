@@ -15,6 +15,10 @@ Sourcer is an ongoing project in active development. I use it every morning in
 my own search and improve it almost every day, so the code and these numbers
 keep changing. The [changelog](CHANGELOG.md) shows what moved recently.
 
+What I learned: a score from a prompt drifts; asking the model fixed yes or no
+checks with quotes and doing the arithmetic in code made scores auditable and
+stable between runs.
+
 ## Why
 
 Job boards answer "what is open", not "what should I apply to today". A
@@ -35,6 +39,10 @@ From the morning run on October 20, 2026.
 | Set aside by rules, before any model call | 45,806 (95%) |
 | New roles judged by the model | 150 |
 
+These numbers come from my private run log; the public `companies.json` is a
+23 company seed list and the full list of 3,004 companies lives in the private
+data repository (see [ADR 0011](docs/adr/0011-public-code-repository.md)).
+
 The rules that do most of that work are deterministic. When a rule acts on the
 posting's own words, such as "5+ years" or "must be a US citizen", those words
 are stored with the decision, so a dropped role can be explained.
@@ -46,7 +54,8 @@ flowchart LR
     D[Discover companies<br/>YC, Built In, HN, VC boards] --> P[Find each company's<br/>job board]
     P --> C[Collect postings<br/>9 ATS APIs and a<br/>sandboxed browser]
     C --> R[Rules<br/>location, level, dates,<br/>work authorization]
-    R --> M[Claude fit checks<br/>against the candidate's<br/>evidence]
+    R --> X[Extract facts<br/>with the posting's<br/>own words]
+    X --> M[Claude fit checks<br/>against the candidate's<br/>evidence]
     M --> S[Score, rank,<br/>explain]
     S --> O[Morning list,<br/>tracker, feedback]
 ```
@@ -61,10 +70,14 @@ flowchart LR
 3. **Rules.** Location, seniority, years required, start dates, graduation
    windows and explicit work authorization limits. Unclear dates are flagged,
    never guessed.
-4. **Judge.** Claude reads the posting and the candidate's approved facts from
-   past jobs and projects. It answers fixed checks. Is this the kind of work the
-   candidate has done and is each real requirement covered, with a quote from
-   the candidate's evidence? Code turns those answers into the score.
+4. **Extract, then judge.** Two model calls per posting. A small model first
+   copies the posting's facts (start date, place, level, years required), each
+   with the posting's own words; code keeps only the facts those words support
+   and runs the rules on them. Only a posting that passes goes to the scoring
+   model, which reads the candidate's approved facts from past jobs and
+   projects and answers fixed checks. Is this the kind of work the candidate
+   has done and is each real requirement covered, with a quote from the
+   candidate's evidence? Code turns those answers into the score.
 5. **Rank and learn.** Freshness, deadlines and the score order the list.
    Thumbs up or down move a role by at most five points and never override a
    rule.
@@ -76,8 +89,10 @@ flowchart LR
 - **The model answers checks; code computes the number.** A score from a
   prompt drifts and cannot be audited. Here the model says which requirements
   are covered and quotes where and fixed arithmetic makes the score. The
-  scale was calibrated on 85 labelled postings. A score of 75 keeps 80% of the
-  wanted roles at 65% precision and 85 reaches 85% precision.
+  scale was calibrated on 85 labelled postings from my private run data (23
+  wanted). The 19 public cases in `evals/` exercise the deterministic rules in
+  CI; `python -m sourcer.evaluate` replays them. A score of 75 keeps 80% of
+  the wanted roles at 65% precision and 85 reaches 85% precision.
 - **Never drop a live role for its age.** A role still on its company's board is
   still open. Age lowers its rank instead of removing it.
 - **Feedback is bounded.** Preferences learned from thumbs adjust the order a
@@ -105,6 +120,11 @@ SOURCER_COMPANIES=tests/fixtures/companies-empty.json SOURCER_SIMPLIFY=0 SOURCER
 For a live run, copy `profile.example.json` to `profile.json`, set
 `ANTHROPIC_API_KEY` and run `.venv/bin/python -m sourcer.main --cost-cap 0.05`.
 Live runs contact job boards and make paid model calls.
+
+The location rules are written for a New York based candidate. `SOURCER_METROS`
+(`nyc`, `sf`) picks the metros in scope; for another metro add its place names
+to `METRO_TERMS` in `sourcer/config.py`, and change `NYC_RE` there if the
+ranker should favour it.
 
 ## Built with
 

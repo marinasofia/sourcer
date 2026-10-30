@@ -1016,7 +1016,9 @@ def start_terms(start_date: str) -> list[tuple[int, int]]:
     for m in re.finditer(r"(20\d\d)[\s,]*(winter|spring|summer|fall|autumn)", sd):
         out.append((int(m.group(1)), SEASON_START[m.group(2)]))
     # "January 2027", "January 4, 2027", "Jan. 4th 2027"
-    for m in re.finditer(rf"\b({_MONTH_NAMES})\b\.?(?:\s+\d{{1,2}}(?:st|nd|rd|th)?)?,?\s*(20\d\d)", sd):
+    for m in re.finditer(
+        rf"\b({_MONTH_NAMES})\b\.?(?:\s+\d{{1,2}}(?:st|nd|rd|th)?)?,?\s*(20\d\d)", sd
+    ):
         out.append((int(m.group(2)), MONTH_START.get(m.group(1)) or _SHORT_MONTHS[m.group(1)]))
     for m in re.finditer(r"(20\d\d)-(0[1-9]|1[0-2])\b", sd):
         out.append((int(m.group(1)), int(m.group(2))))

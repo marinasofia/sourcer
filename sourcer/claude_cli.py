@@ -139,7 +139,9 @@ class _Messages:
     def create(self, **params: Any) -> SimpleNamespace:
         # a call that asks for the web search server tool gets the CLI's own
         # web tools and nothing else: no files, no shell
-        web = any(str(t.get("type", "")).startswith("web_search") for t in params.get("tools") or [])
+        web = any(
+            str(t.get("type", "")).startswith("web_search") for t in params.get("tools") or []
+        )
         argv = [
             self.binary, "-p",
             "--model", params["model"],

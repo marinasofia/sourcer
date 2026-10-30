@@ -1,7 +1,7 @@
 # 0004. One model call parses and scores a posting
 
 Date: 2026-08-24
-Status: accepted
+Status: superseded by 0012
 
 ## Context
 

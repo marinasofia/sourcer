@@ -324,9 +324,7 @@ def test_score_listings_main_happy_and_cap(tmp_db, paths, posting_row, monkeypat
     tmp_db.commit()
     monkeypatch.setattr(score_listings.db, "connect", lambda: tmp_db)
     monkeypatch.setattr(score_listings.net, "get", lambda *a, **k: Page())
-    monkeypatch.setattr(
-        score_listings.llm, "get_client", lambda: make_client(worker_replies() * 2)
-    )
+    monkeypatch.setattr(score_listings.llm, "get_client", lambda: make_client(worker_replies() * 2))
     # room for one posting's two calls (facts, then fit), not a second posting
     monkeypatch.setattr(score_listings.config, "COST_CAP_USD", 0.0006)
     assert score_listings.main([]) == 0

@@ -140,9 +140,7 @@ def test_main_with_model_flag(
     paths: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     monkeypatch.setattr(config, "COST_CAP_USD", 10.0)
-    monkeypatch.setattr(
-        evaluate.llm, "get_client", lambda: make_client(worker_replies())
-    )
+    monkeypatch.setattr(evaluate.llm, "get_client", lambda: make_client(worker_replies()))
     labelled = paths / "l.json"
     labelled.write_text(
         json.dumps(

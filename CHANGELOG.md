@@ -6,8 +6,20 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- Two workers read a posting. A small extraction model
+  (`SOURCER_EXTRACT_MODEL`, `llm.extract_posting`) copies its facts (start
+  date, place, level, years) with the posting's own words, code keeps only
+  the facts those words support, the rules run on them, and only a posting
+  that passes is scored for fit by the scoring model (ADR 0012, which
+  supersedes 0004).
+
 ### Fixed
 
+- Start dates written as "January 4, 2027" or "Winter, 2027" are read, and
+  an internship's title and stated start date are checked together, so a
+  winter term in the title is never missed (#25).
 - The reply size cap was 8 MB, which refused the biggest real boards
   (Anthropic, OpenAI, Databricks, Veeva) and both SimplifyJobs lists. It is
   64 MB now.
