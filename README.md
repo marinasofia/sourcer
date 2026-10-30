@@ -126,6 +126,30 @@ The location rules are written for a New York based candidate. `SOURCER_METROS`
 to `METRO_TERMS` in `sourcer/config.py`, and change `NYC_RE` there if the
 ranker should favour it.
 
+## Use it for your own search
+
+```bash
+git clone https://github.com/marinasofia/sourcer.git && cd sourcer
+python3 -m venv .venv && .venv/bin/pip install -e ".[onboard]"
+.venv/bin/sourcer init
+```
+
+`sourcer init` asks for your resume first, then your GitHub username, then
+offers project folders and links, and reads each one as you add it. It uses
+your own Claude CLI login when `claude` is installed, otherwise your
+`ANTHROPIC_API_KEY`. You approve each fact it finds (`sourcer facts review`),
+and only approved facts are used for scoring. Then `sourcer` builds your list.
+Skill weights are computed from those facts, each with its reason
+(`sourcer skills`), and `sourcer sync` rechecks your sources and queues only
+what changed.
+
+Your data stays with you: it is kept in local files, and nothing goes to this
+project. Only short redacted excerpts leave, to Anthropic through your own
+Claude login or key, plus GitHub's public API for your username and the
+links you add.
+`sourcer forget` removes one source or everything; see
+[docs/privacy.md](docs/privacy.md).
+
 ## Built with
 
 Python, LangGraph, the Claude API (or the Claude Code CLI), Playwright, SQLite
@@ -139,6 +163,7 @@ hash pinned lockfiles and a secret scan of the full history.
 ## More
 
 - [Reference](docs/reference.md): every setting, input file and command
+- [Privacy](docs/privacy.md): what onboarding reads, sends and keeps
 - [Operations](docs/operations.md): running, debugging, reading the run log
 - [Deployment](docs/deployment.md): Docker, Actions, Lambda, Kubernetes, Snowflake
 - [Model card](docs/model-card.md): how the model is used and where it fails

@@ -18,6 +18,8 @@ acceptance; a later record supersedes it.
 | [0010](0010-private-single-operator-deployment.md) | Private single-operator deployment | accepted, code part superseded by 0011 |
 | [0011](0011-public-code-repository.md) | Public code repository | accepted |
 | [0012](0012-two-workers-extract-then-score.md) | Two workers read a posting: extract facts, then score fit | accepted |
+| [0013](0013-onboarding-from-sources.md) | Onboarding builds evidence from the candidate's own sources | accepted |
+| [0014](0014-computed-skill-weights.md) | Skill weights are computed from approved facts | accepted |
 
 Template for a new record:
 

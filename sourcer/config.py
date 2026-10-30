@@ -64,6 +64,26 @@ EXTRACT_MODEL = os.environ.get("SOURCER_EXTRACT_MODEL", "claude-haiku-5-5")
 # "api" (Messages API, needs ANTHROPIC_API_KEY) or "claude-code" (the claude
 # CLI on the operator's subscription login; single operator, no batches).
 LLM_BACKEND = os.environ.get("SOURCER_LLM", "api")
+# Onboarding (sourcer init, sourcer facts). Every file below is local to the
+# candidate's machine and gitignored; sourcer forget --all deletes them.
+SOURCES_PATH = Path(os.environ.get("SOURCER_SOURCES", PROFILE_PATH.parent / "sources.json"))
+FACTS_PATH = Path(os.environ.get("SOURCER_FACTS", PROJECT_ROOT / "data" / "facts.json"))
+ONBOARD_LOG_PATH = Path(
+    os.environ.get("SOURCER_ONBOARD_LOG", PROJECT_ROOT / "data" / "onboard-log.jsonl")
+)
+ONBOARD_PREVIEW_PATH = Path(
+    os.environ.get("SOURCER_ONBOARD_PREVIEW", PROJECT_ROOT / "data" / "onboard-preview.txt")
+)
+# The model that turns source excerpts into candidate facts; empty means EXTRACT_MODEL.
+FACTS_MODEL = os.environ.get("SOURCER_FACTS_MODEL", "") or EXTRACT_MODEL
+# Characters of excerpts sent in one fact extraction call.
+ONBOARD_BATCH_CHARS = int(os.environ.get("SOURCER_ONBOARD_BATCH_CHARS", "12000"))
+# A local file larger than this is never read.
+ONBOARD_MAX_FILE_BYTES = int(os.environ.get("SOURCER_ONBOARD_MAX_FILE_BYTES", "200000"))
+# Most recently pushed public repositories read for a GitHub username.
+ONBOARD_GITHUB_MAX_REPOS = int(os.environ.get("SOURCER_ONBOARD_GITHUB_MAX_REPOS", "20"))
+# Pages read for one link source (a portfolio site, Devpost projects), the first included.
+ONBOARD_LINK_MAX_PAGES = max(1, int(os.environ.get("SOURCER_ONBOARD_LINK_MAX_PAGES", "5")))
 LOG_LEVEL = os.environ.get("SOURCER_LOG_LEVEL", "INFO")
 DRY_RUN = os.environ.get("SOURCER_DRY_RUN", "1").strip().lower() not in {"0", "false", "no"}
 TELEGRAM_TOKEN = os.environ.get("SOURCER_TELEGRAM_TOKEN", "").strip()

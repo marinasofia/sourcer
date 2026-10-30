@@ -23,12 +23,12 @@ Python 3.12 or newer is required.
 git clone https://github.com/marinasofia/sourcer.git
 cd sourcer
 python3 -m venv .venv
-.venv/bin/pip install -e ".[dev,aws,snowflake]"
+.venv/bin/pip install -e ".[dev,aws,snowflake,onboard]"
 cp skills_vector.example.json skills_vector.json  # edit the weights
 .venv/bin/pre-commit install
 ```
 
-`uv` works too: `uv venv && uv pip install -e ".[dev,aws,snowflake]"`.
+`uv` works too: `uv venv && uv pip install -e ".[dev,aws,snowflake,onboard]"`.
 No API key is needed for offline checks. Create a local `.env` only when
 intentionally working with a live model account.
 

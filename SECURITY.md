@@ -85,6 +85,14 @@ Narrow Bandit suppressions document reviewed fixed commands, bound SQL values,
 constant predicates, and Lambda-isolated temporary paths. No rule is disabled
 globally. See [local verification](docs/maintenance.md#security-scanner-verification).
 
+## What onboarding reads and sends
+
+`sourcer init` reads only the sources the candidate adds, never opens secrets,
+gitignored files or dependencies in a folder, redacts every excerpt, and sends
+excerpts only to Anthropic through the candidate's own CLI login or API key,
+after a yes. Each outbound call is logged locally without content.
+[docs/privacy.md](docs/privacy.md) has the details.
+
 ## Network isolation limits
 
 URL checks are defense in depth. DNS may change between validation and connection,
