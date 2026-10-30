@@ -52,8 +52,8 @@ The private data repository owns the schedule. Its workflow checks out this
 public repository for code, seeds the private skills vector and database
 export, runs the pipeline, commits the full results privately, and pushes
 only `docs/data-public.json` and `docs/showcase.json` back here through a
-deploy key. The `deploy-pages.yml` workflow in this repository then publishes
-`docs/` to GitHub Pages.
+deploy key. The private repository publishes `docs/` with `showcase.json` to
+GitHub Pages; this repository has no Pages workflow.
 
 Secrets on the private repository:
 
