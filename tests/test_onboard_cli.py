@@ -137,7 +137,7 @@ def test_init_conversation_preview_then_decline(machine: dict[str, Any]) -> None
         "",  # no GitHub
         str(project), "e", "build/*", "y", "n",  # folder with an exclude, calls declined
         "",  # no other folder
-        "https://example.org/me, not a thing!!",
+        "https://example.org/me, not a thing!!", "n",  # a link is read too; calls declined
         "", "", "1", "sf",  # profile
     )  # fmt: skip
     assert cli.main(["init"], console=script.console()) == 0
@@ -146,13 +146,14 @@ def test_init_conversation_preview_then_decline(machine: dict[str, Any]) -> None
     assert "Take it back anytime with `sourcer forget --source resume`." in script.text
     gates = [p for p in script.prompts if "Continue?" in p]
     assert gates[0].startswith("First scan reads 1 file, about 1 model call on your Claude")
-    assert "(p to preview" in gates[0] and gates[-1].startswith("This scan reads 2 files")
+    assert "(p to preview" in gates[0] and gates[-2].startswith("This scan reads 2 files")
+    assert gates[-1].startswith("This scan reads 1 page")
     consent = next(p for p in script.prompts if "Include?" in p)
     assert "2 files to read" in consent and "dependencies skipped" in consent
     assert "skipped: not a folder, link, zip or resume file" in script.text
-    assert "Sourcer does not read links yet" in script.text
+    assert "I'll read this page and up to 4 more on example.org." in script.text
     sources = store.load_sources()["sources"]
-    assert [s["type"] for s in sources] == ["resume", "folder", "link"]
+    assert [s["type"] for s in sources] == ["resume", "folder", "page"]
     assert sources[1]["excludes"] == ["build/*"]
     assert config.ONBOARD_PREVIEW_PATH.exists() and "No model calls made." in script.text
     machine["factory"].assert_not_called()
@@ -260,7 +261,7 @@ def test_init_add_keeps_profile(machine: dict[str, Any]) -> None:
     assert cli.main(argv, console=script.console(interactive=False)) == 0
     assert json.loads((root / "profile.json").read_text()) == {"grad_year": 2028}
     assert "links start with https://" in script.text and "zip not found" in script.text
-    assert [s["type"] for s in store.load_sources()["sources"]] == ["link"]
+    assert [s["type"] for s in store.load_sources()["sources"]] == ["page"]
     assert cli.PRIVACY_SHORT not in script.text
     again = Script()
     assert cli.main(["init"], console=again.console(interactive=False)) == 0

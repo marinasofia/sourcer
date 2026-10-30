@@ -445,10 +445,10 @@ def test_skip_reason_unreadable(tmp_path: Path) -> None:
 
 
 def test_registry_and_links(tmp_path: Path) -> None:
-    link = spec("link", "https://example.org/portfolio")
+    link = spec("link", "https://www.linkedin.com/in/someone")  # saved before link collectors
     got = collect.collect_all([link, {"id": "x", "type": "unknown", "value": "y"}])
     assert list(got) == [link["id"]]
-    assert "not read yet" in got[link["id"]].notes[0]
+    assert "data export" in got[link["id"]].notes[0]  # LinkedIn is never fetched
     with pytest.raises(ValueError):
         source_spec("fax", "1")
     assert spec("github", "a")["id"] == spec("github", "a")["id"] != spec("github", "b")["id"]

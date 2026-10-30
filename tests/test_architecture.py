@@ -56,6 +56,8 @@ LAYERS: dict[str, int] = {
     "onboard.collect": 1,
     "onboard.extract": 1,
     "onboard.weights": 1,
+    "onboard.web": 1,
+    "onboard.links": 1,
     # 2: the pipeline
     "pipeline": 2,
     "pipeline.state": 2,

@@ -7,9 +7,10 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-# The source types a candidate can add. "link" is recorded now and read by a
-# link collector added later; it yields no items until then.
-SOURCE_TYPES = ("resume", "github", "folder", "link", "linkedin")
+# The source types a candidate can add. A link is saved as the kind its URL
+# names (onboard.links.detect); "link" remains for links saved before that.
+SOURCE_TYPES = ("resume", "github", "folder", "link", "linkedin", "page", "feed", "kaggle",
+                "huggingface", "devpost", "scholar", "credly", "publications")  # fmt: skip
 
 
 def digest(text: str, size: int = 12) -> str:

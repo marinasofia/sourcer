@@ -20,7 +20,7 @@ from pathlib import Path
 from typing import Any
 
 from .. import config, llm, log
-from . import backends, folders, store, weights
+from . import backends, folders, links, store, weights
 from .collect import collect_all
 from .extract import clean, estimate, printable, run, write_preview
 from .github import valid_username
@@ -69,7 +69,10 @@ What leaves this computer, and who sees it
      straight to api.anthropic.com. Anthropic's own policy covers what it
      keeps: {backends.ANTHROPIC_PRIVACY}
   2. Requests to api.github.com for the username you give (public data only).
-  3. Requests to the links you add.
+  3. Requests to the links you add, and to the public APIs of Hugging Face and
+     Credly for those links. Sourcer reads robots.txt first, names itself in
+     every request, reads at most a few pages per link and never follows a
+     link to another site.
   This project never collects your data and never trains anything on it. It
   has no server, no telemetry and no account. Before any model call you see
   how much will be read, and `p` writes the exact excerpts to a preview file
@@ -223,7 +226,7 @@ def classify(entry: str) -> tuple[str, str] | str:
 
 
 def label(kind: str, value: str) -> str:
-    if kind in ("resume", "linkedin"):
+    if kind in ("resume", "linkedin", "publications"):
         return Path(value).name
     if kind == "folder":
         return show(Path(value))
@@ -257,18 +260,25 @@ def consent_folder(console: Console, path: Path, excludes: list[str]) -> list[st
 
 def check_source(kind: str, value: str) -> str | None:
     """Why a source cannot be added, or None."""
+    if kind in links.LINK_TYPES:
+        found = links.detect(value)
+        if isinstance(found, str):
+            return found
+        return None if found[0] == kind else f"that is a {found[0]} link, not {kind}: {value}"
     path = Path(value)
-    if kind == "resume" and (not path.is_file() or path.suffix.lower() not in RESUME_SUFFIXES):
-        return f"resume not found or not {', '.join(RESUME_SUFFIXES)}: {path.name}"
-    if kind == "github" and not valid_username(value):
-        return f"not a GitHub username: {value!r}"
-    if kind == "folder" and not path.is_dir():
-        return f"folder not found: {show(path)}"
-    if kind == "linkedin" and not (path.is_file() and path.suffix.lower() == ".zip"):
-        return f"LinkedIn export zip not found: {path.name}"
-    if kind == "link" and not re.match(r"^https?://[^\s/]+", value, re.I):
-        return f"links start with https://: {value}"
-    return None
+    suffix = path.suffix.lower()
+    problems = {
+        "resume": (not path.is_file() or suffix not in RESUME_SUFFIXES,
+                   f"resume not found or not {', '.join(RESUME_SUFFIXES)}: {path.name}"),
+        "github": (not valid_username(value), f"not a GitHub username: {value!r}"),
+        "folder": (not path.is_dir(), f"folder not found: {show(path)}"),
+        "linkedin": (not (path.is_file() and suffix == ".zip"),
+                     f"LinkedIn export zip not found: {path.name}"),
+        "publications": (not (path.is_file() and suffix in links.PUBLICATION_SUFFIXES),
+                         f"publications list not found or not TXT or MD: {path.name}"),
+    }  # fmt: skip
+    bad, why = problems.get(kind, (False, ""))
+    return why if bad else None
 
 
 def revoke_hint(data: dict[str, Any], spec: dict[str, Any]) -> str:
@@ -282,7 +292,14 @@ def add_one(
     console: Console, data: dict[str, Any], kind: str, value: str, excludes: list[str] | None = None
 ) -> dict[str, Any] | None:
     """Check one source, ask consent for a folder, and save it. Returns its
-    entry, or None when it was not added."""
+    entry, or None when it was not added. A link is saved as the kind its
+    URL names (a feed, a Hugging Face profile...)."""
+    if kind == "link":
+        found = links.detect(value)
+        if isinstance(found, str):
+            console.say(f"  skipped: {found}")
+            return None
+        kind, value = found
     problem = check_source(kind, value)
     if problem:
         console.say(f"  skipped: {problem}")
@@ -311,6 +328,7 @@ def flag_sources(args: argparse.Namespace) -> list[tuple[str, str]]:
         *(("folder", where(p)) for p in args.folder or []),
         *(("link", u) for u in args.link or []),
         *(("linkedin", where(p)) for p in args.linkedin_export or []),
+        *(("publications", where(p)) for p in args.publications or []),
     ]
 
 
@@ -322,19 +340,24 @@ def _pending_items(collected: dict[str, Any], scanned: dict[str, str]) -> list[S
     return [i for c in collected.values() for i in c.items if scanned.get(i.id) != i.sha]
 
 
+# what one entry of Collected.read is, by source type; anything else is a file
+READ_NOUNS = {"github": "repo", "huggingface": "item", "credly": "badge", "feed": "post",
+              "scholar": "list", "page": "page", "kaggle": "page", "devpost": "page",
+              "link": "page"}  # fmt: skip
+
+
+def _noun(kind: str) -> str:
+    return READ_NOUNS.get(kind, "file")
+
+
 def _reads_line(sources: list[dict[str, Any]], collected: dict[str, Any]) -> str:
-    files = repos = 0
+    counts: Counter[str] = Counter()
     for source in sources:
         got = collected.get(source["id"])
-        if got is None:
-            continue
-        if source["type"] == "github":
-            repos += len(got.read)
-        else:
-            files += len(got.read)
-    parts = [plural(files, "file")] if files or not repos else []
-    parts += [plural(repos, "repo")] if repos else []
-    return " and ".join(parts)
+        if got is not None:
+            counts[_noun(source["type"])] += len(got.read)
+    parts = [plural(n, noun) for noun, n in counts.items() if n]
+    return " and ".join(parts) or plural(0, "file")
 
 
 def _summary(sources: list[dict[str, Any]], collected: dict[str, Any], console: Console) -> None:
@@ -343,7 +366,7 @@ def _summary(sources: list[dict[str, Any]], collected: dict[str, Any], console: 
         if got is None:
             continue
         names = ", ".join(got.read[:6]) + (", ..." if len(got.read) > 6 else "")
-        what = plural(len(got.read), "repo" if source["type"] == "github" else "file")
+        what = plural(len(got.read), _noun(source["type"]))
         console.say(printable(f"  {source['type']} {source.get('label') or source['value']}: "
                           f"{what}{' (' + names + ')' if names else ''}"))  # fmt: skip
         for note in got.notes:
@@ -792,7 +815,8 @@ def converse(console: Console, args: argparse.Namespace, backend: str) -> int:
             scan_one(spec)
         prompt = "Another project folder? Its path, or Enter to move on: "
     more = console.ask(
-        "Any links (portfolio, blog) or a LinkedIn data export zip? Comma separated, or Enter: "
+        "Any links? A portfolio, blog or feed, Kaggle, Hugging Face, Devpost, Google Scholar or "
+        "Credly page, or a LinkedIn data export zip. Comma separated, or Enter: "
     )
     for entry in (e for e in more.split(",") if e.strip()):
         kind = classify(entry)
@@ -803,10 +827,9 @@ def converse(console: Console, args: argparse.Namespace, backend: str) -> int:
         if spec is None:
             continue
         console.say(f"Got it, {spec['label']}. {revoke_hint(data, spec)}")
-        if kind[0] == "link":
-            console.say("  Sourcer does not read links yet; a later version will.")
-        else:
-            scan_one(spec)
+        if spec["type"] in links.LINK_TYPES:
+            console.say(links.describe(spec["type"], spec["value"]))
+        scan_one(spec)
     return 0
 
 
@@ -889,6 +912,9 @@ def _parser() -> argparse.ArgumentParser:
     )
     init_p.add_argument("--link", action="append", metavar="URL")
     init_p.add_argument("--linkedin-export", action="append", metavar="ZIP")
+    init_p.add_argument(
+        "--publications", action="append", metavar="FILE", help="a TXT or MD publications list"
+    )
     init_p.add_argument("--grad", default="", metavar="YYYY-MM", help="graduation month")
     init_p.add_argument("--degree", default="")
     init_p.add_argument("--graduated", action="store_true", help="already graduated")

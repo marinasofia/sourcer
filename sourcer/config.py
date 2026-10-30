@@ -82,6 +82,8 @@ ONBOARD_BATCH_CHARS = int(os.environ.get("SOURCER_ONBOARD_BATCH_CHARS", "12000")
 ONBOARD_MAX_FILE_BYTES = int(os.environ.get("SOURCER_ONBOARD_MAX_FILE_BYTES", "200000"))
 # Most recently pushed public repositories read for a GitHub username.
 ONBOARD_GITHUB_MAX_REPOS = int(os.environ.get("SOURCER_ONBOARD_GITHUB_MAX_REPOS", "20"))
+# Pages read for one link source (a portfolio site, Devpost projects), the first included.
+ONBOARD_LINK_MAX_PAGES = max(1, int(os.environ.get("SOURCER_ONBOARD_LINK_MAX_PAGES", "5")))
 LOG_LEVEL = os.environ.get("SOURCER_LOG_LEVEL", "INFO")
 DRY_RUN = os.environ.get("SOURCER_DRY_RUN", "1").strip().lower() not in {"0", "false", "no"}
 TELEGRAM_TOKEN = os.environ.get("SOURCER_TELEGRAM_TOKEN", "").strip()
