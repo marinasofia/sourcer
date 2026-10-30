@@ -2,7 +2,9 @@
 
 `sourcer init` turns your own sources into facts for your job search. This page
 says exactly what it reads, what leaves your computer and where everything is
-kept. `sourcer init` shows the same text when you type `details`.
+kept. `sourcer init` opens with two lines (Sourcer keeps your data only on
+this computer; nothing is sent to us) and shows the text below when you type
+`details`.
 
 ## The short version
 

@@ -27,10 +27,10 @@ from .github import valid_username
 from .items import SourceItem, source_spec
 from .resume import SUFFIXES as RESUME_SUFFIXES
 
-PRIVACY_SHORT = """Your files, facts and profile stay on this computer.
-Sourcer sends short excerpts to your own Claude to pull out facts about your work. Nothing goes to us, and there is no account.
-You approve every fact before it is used, and `sourcer forget` removes one source or everything.
-Type `details` to see exactly what is read and sent, or press Enter to start."""  # noqa: E501
+# Two lines because most people press Enter. "Keeps" is about storage: every
+# file Sourcer writes is local; excerpts sent to the model are in `details`.
+PRIVACY_SHORT = """Sourcer keeps your data only on this computer. Nothing is sent to us.
+Press Enter to start, or type `details`."""
 
 
 def plural(n: int, word: str) -> str:
