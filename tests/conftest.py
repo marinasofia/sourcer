@@ -200,3 +200,19 @@ def current_trace(skills: dict[str, Any]) -> dict[str, Any]:
     note = {k: basis[k] for k in ("model", "evidence", "scorer")}
     facts = {"model": config.EXTRACT_MODEL, "checked": {}, "quotes": {}}
     return {"input": {**note, "prompt": next(iter(basis["prompts"]))}, "reads": [], "facts": facts}
+
+
+@pytest.fixture
+def onboard_paths(paths: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """``paths`` plus every onboarding file, all under ``tmp_path``. The
+    profile and skills files start absent so init writes its own."""
+    (paths / "profile.json").unlink()
+    (paths / "skills_vector.json").unlink()
+    monkeypatch.setattr(config, "SOURCES_PATH", paths / "sources.json")
+    monkeypatch.setattr(config, "FACTS_PATH", paths / "data" / "facts.json")
+    monkeypatch.setattr(config, "ONBOARD_LOG_PATH", paths / "data" / "onboard-log.jsonl")
+    monkeypatch.setattr(config, "ONBOARD_PREVIEW_PATH", paths / "data" / "onboard-preview.txt")
+    monkeypatch.setattr(config, "EVIDENCE_PATH", paths / "data" / "evidence.txt")
+    monkeypatch.delenv("GITHUB_TOKEN", raising=False)
+    monkeypatch.delenv("SOURCER_LLM", raising=False)
+    return paths

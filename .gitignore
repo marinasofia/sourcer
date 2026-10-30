@@ -34,6 +34,7 @@ htmlcov/
 # --- Operator-specific inputs (kept in the private data repo)
 skills_vector.json
 profile.json
+sources.json
 resumes/
 kits/
 *.docx
