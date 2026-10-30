@@ -83,7 +83,7 @@ def test_verify_keeps_only_quoted_facts() -> None:
             {**GOOD, "item": "i9"},
             {**GOOD, "text": ""},
             "not a fact",
-            {**GOOD, "kind": "hobby", "skills": "Python", "text": "Built a weekly demand model."},
+            {**GOOD, "kind": "hobby", "skills": "Python", "text": "Built a \x1b[31mweekly model."},
         ]
     }
     facts, dropped = extract.verify_facts(data, batch)
@@ -93,6 +93,7 @@ def test_verify_keeps_only_quoted_facts() -> None:
     assert first["kind"] == "job" and first["source_ref"] == "cv.txt"
     assert first["item_id"] == batch[0].id and first["item_sha"] == batch[0].sha
     assert second["kind"] == "other" and second["skills"] == []
+    assert second["text"] == "Built a [31mweekly model."  # the escape byte is gone
     again, _ = extract.verify_facts(data, batch)
     assert again[0]["id"] == first["id"]  # stable ids, so a rescan never duplicates
 

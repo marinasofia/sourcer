@@ -131,7 +131,8 @@ def git_dates(root: Path) -> tuple[str, str, int] | None:
         return None
     try:
         proc = subprocess.run(  # noqa: S603  # nosec B603
-            [git, "-C", str(root), "log", "--format=%cs", "--no-merges"],
+            [git, "--no-pager", "-c", "core.fsmonitor=false", "-C", str(root), "log",
+             "--format=%cs", "--no-merges"],
             capture_output=True, text=True, timeout=20, check=False,
             env={"PATH": os.environ.get("PATH", ""), "GIT_CONFIG_NOSYSTEM": "1",
                  "HOME": "/nonexistent"},

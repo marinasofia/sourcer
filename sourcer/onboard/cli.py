@@ -22,7 +22,7 @@ from typing import Any
 from .. import config, llm, log
 from . import backends, folders, store
 from .collect import collect_all
-from .extract import estimate, run, write_preview
+from .extract import clean, estimate, run, write_preview
 from .github import valid_username
 from .items import SourceItem, source_spec
 from .resume import SUFFIXES as RESUME_SUFFIXES
@@ -31,6 +31,10 @@ PRIVACY_SHORT = """Your files, facts and profile stay on this computer.
 Sourcer sends short excerpts to your own Claude to pull out facts about your work. Nothing goes to us, and there is no account.
 You approve every fact before it is used, and `sourcer forget` removes one source or everything.
 Type `details` to see exactly what is read and sent, or press Enter to start."""  # noqa: E501
+
+
+def plural(n: int, word: str) -> str:
+    return f"{n} {word}{'' if n == 1 else 's'}"
 
 
 def show(path: Path) -> str:
@@ -230,8 +234,8 @@ def folder_line(path: Path, excludes: list[str]) -> str:
     found = folders.plan(path, excludes)
     n = len(found.files)
     return (
-        f"{show(path)}: {n} file{'s' if n != 1 else ''} to read in {len(found.projects)} "
-        "projects, secrets, ignored files and dependencies skipped."
+        f"{show(path)}: {plural(n, 'file')} to read in {plural(len(found.projects), 'project')}, "
+        "secrets, ignored files and dependencies skipped."
     )
 
 
@@ -328,8 +332,8 @@ def _reads_line(sources: list[dict[str, Any]], collected: dict[str, Any]) -> str
             repos += len(got.read)
         else:
             files += len(got.read)
-    parts = [f"{files} file{'s' if files != 1 else ''}"] if files or not repos else []
-    parts += [f"{repos} repo{'s' if repos != 1 else ''}"] if repos else []
+    parts = [plural(files, "file")] if files or not repos else []
+    parts += [plural(repos, "repo")] if repos else []
     return " and ".join(parts)
 
 
@@ -339,9 +343,9 @@ def _summary(sources: list[dict[str, Any]], collected: dict[str, Any], console: 
         if got is None:
             continue
         names = ", ".join(got.read[:6]) + (", ..." if len(got.read) > 6 else "")
-        what = "repos" if source["type"] == "github" else "files"
+        what = plural(len(got.read), "repo" if source["type"] == "github" else "file")
         console.say(f"  {source['type']} {source.get('label') or source['value']}: "
-                    f"{len(got.read)} {what}{' (' + names + ')' if names else ''}")  # fmt: skip
+                    f"{what}{' (' + names + ')' if names else ''}")  # fmt: skip
         for note in got.notes:
             console.say(f"    {note}")
 
@@ -415,7 +419,7 @@ def _scan(  # noqa: PLR0911 (each early stop says why no call ran)
         if est.usd is not None
         else "on your Claude subscription"
     )
-    calls = f"about {est.calls} model call{'s' if est.calls != 1 else ''} {cost}"
+    calls = f"about {plural(est.calls, 'model call')} {cost}"
     word = "First scan" if first else "This scan"
     line = (
         f"{word} reads {_reads_line(sources, collected)}, {calls}. Continue? [Y/n]"
@@ -435,7 +439,10 @@ def _scan(  # noqa: PLR0911 (each early stop says why no call ran)
     store.save_facts(facts)
     new_sources = {f["source_id"] for f in result.facts}
     skills = ", ".join(top_skills(result.facts)) or "none named yet"
-    console.say(f"Found {added} facts from {len(new_sources)} sources. Top skills: {skills}.")
+    console.say(
+        f"Found {plural(added, 'fact')} from {plural(len(new_sources), 'source')}. "
+        f"Top skills: {skills}."
+    )
     if result.dropped:
         console.say(f"Left out {result.dropped} facts whose quote was not in the source.")
     if result.failed_calls:
@@ -484,7 +491,9 @@ def offer_review(console: Console, facts: dict[str, Any]) -> None:
 def finish_review(console: Console, facts: dict[str, Any]) -> None:
     store.save_facts(facts)
     count = store.write_evidence(facts["facts"])
-    console.say(f"{count} approved facts are in {show(config.EVIDENCE_PATH)}; scoring uses them.")
+    console.say(
+        f"{plural(count, 'approved fact')} in {show(config.EVIDENCE_PATH)}; scoring uses them."
+    )
 
 
 def _describe(fact: dict[str, Any], n: int, total: int) -> str:
@@ -519,7 +528,7 @@ def review(console: Console, facts: dict[str, Any]) -> int:
         elif answer == "e":
             text = console.ask("  New text (Enter keeps it): ", "")
             if text:
-                fact["text"], fact["edited"] = " ".join(text.split()), True
+                fact["text"], fact["edited"] = clean(text, 400), True
             fact["status"] = "approved"
         elif answer == "s":
             for other in pending:
@@ -673,9 +682,9 @@ def converse(console: Console, args: argparse.Namespace, backend: str) -> int:
             console.say(f"Got it, {spec['label']}. {revoke_hint(data, spec)}")
             got = scan_one(spec).collected.get(spec["id"])
             if got is not None and got.read:
-                console.say(f"That was {len(got.read)} public repos.")
+                console.say(f"That was {plural(len(got.read), 'public repo')}.")
     console.say(
-        f"I found {len(found)} facts so far. Adding a project folder usually finds more."
+        f"I found {plural(len(found), 'fact')} so far. Adding a project folder usually finds more."
         if found
         else "A project folder on this computer helps me find your projects."
     )

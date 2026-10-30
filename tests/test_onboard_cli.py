@@ -94,7 +94,7 @@ def test_init_with_flags_and_yes(machine: dict[str, Any], monkeypatch: pytest.Mo
     assert "SOURCER_LLM=claude-code" in env and "SOURCER_EVIDENCE_SCORING=1" in env
     assert "SOURCER_METROS=nyc,sf" in env
     assert json.loads((root / "skills_vector.json").read_text())["skills"] == []
-    assert "on your Claude subscription" in script.text and "Found 1 facts" in script.text
+    assert "on your Claude subscription" in script.text and "Found 1 fact " in script.text
     facts = store.load_facts()["facts"]
     assert [f["status"] for f in facts] == ["pending"]  # --yes never approves a fact
     assert not config.EVIDENCE_PATH.exists()
@@ -178,10 +178,10 @@ def test_init_conversation_shows_value_then_asks_for_more(
     root = machine["root"]
     script = Script("", str(root / "cv.txt"), "", "octo-example", "", "", "", "", "", "", "", "a")
     assert cli.main(["init"], console=script.console()) == 0
-    assert "Found 1 facts from 1 sources. Top skills: Python, SQL." in script.text
+    assert "Found 1 fact from 1 source. Top skills: Python, SQL." in script.text
     assert "A few of them:\n  Built a forecasting model in Python and SQL." in script.text
-    assert "That was 1 public repos." in script.text
-    assert "I found 1 facts so far. Adding a project folder usually finds more." in script.text
+    assert "That was 1 public repo." in script.text
+    assert "I found 1 fact so far. Adding a project folder usually finds more." in script.text
     assert "Take it back anytime with `sourcer forget --source github`." in script.text
     assert "Built a forecasting model" in config.EVIDENCE_PATH.read_text()
     assert machine["client"].messages.create.call_count == 2
@@ -191,7 +191,7 @@ def test_scan_then_approve_all(machine: dict[str, Any]) -> None:
     store.save_sources({"sources": [cli.source_spec("resume", str(machine["root"] / "cv.txt"))]})
     script = Script("y", "a")
     assert cli.scan(script.console(), "auto") == 0
-    assert "Found 1 facts from 1 sources. Top skills: Python, SQL." in script.text
+    assert "Found 1 fact from 1 source. Top skills: Python, SQL." in script.text
     evidence = config.EVIDENCE_PATH.read_text()
     assert "Data Intern, Example Corp (job, June 2024 to August 2024)" in evidence
     assert "- Built a forecasting model in Python and SQL. Skills: Python, SQL." in evidence

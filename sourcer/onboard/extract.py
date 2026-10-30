@@ -100,11 +100,17 @@ def _named_in(skill: str, text: str) -> bool:
     return bool(s) and re.search(r"(?<!\w)" + re.escape(s) + r"(?!\w)", text.lower()) is not None
 
 
+def clean(text: Any, limit: int) -> str:
+    """One line of plain text: no control characters (a terminal escape in a
+    source cannot reach the review screen), single spaces, capped."""
+    return " ".join(re.sub(r"[\x00-\x1f\x7f-\x9f]", " ", str(text or "")).split())[:limit]
+
+
 def _skills(named: list[Any], text: str) -> list[str]:
     """The named skills the item's text contains, once each, case ignored."""
     seen: dict[str, str] = {}
     for raw in named:
-        skill = " ".join(str(raw).split())
+        skill = clean(raw, 60)
         if _named_in(skill, text):
             seen.setdefault(skill.lower(), skill)
     return list(seen.values())
@@ -121,8 +127,8 @@ def verify_facts(data: dict[str, Any], batch: list[SourceItem]) -> tuple[list[di
             dropped += 1
             continue
         item = by_id.get(str(raw.get("item")))
-        text = " ".join(str(raw.get("text") or "").split())[:MAX_FACT_CHARS]
-        quote = " ".join(str(raw.get("quote") or "").split())
+        text = clean(raw.get("text"), MAX_FACT_CHARS)
+        quote = clean(raw.get("quote"), MAX_FACT_CHARS)
         if (
             item is None
             or not text
@@ -141,8 +147,8 @@ def verify_facts(data: dict[str, Any], batch: list[SourceItem]) -> tuple[list[di
                 "text": text,
                 "skills": _skills(skills, item.text),
                 "kind": kind if kind in FACT_KINDS else "other",
-                "group": " ".join(str(raw.get("group") or "").split())[:120],
-                "dates": " ".join(str(raw.get("dates") or "").split())[:60],
+                "group": clean(raw.get("group"), 120),
+                "dates": clean(raw.get("dates"), 60),
                 "source_type": item.source_type,
                 "source_id": item.source_id,
                 "source_ref": item.location,
