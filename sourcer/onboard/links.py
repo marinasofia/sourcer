@@ -96,13 +96,18 @@ ITEM_CHARS = PAGE_CHARS + 1000  # one item's excerpt, whatever a remote field ho
 FIELD_CHARS = 300  # one remote title, date, name or tag
 
 
+def _cut(text: str, limit: int) -> str:
+    """Redact, then cut: a secret that crosses the cut is masked whole."""
+    return redact(text)[:limit]
+
+
 def _f(value: Any) -> str:
-    """One remote field on one line, capped."""
-    return " ".join(str(value or "").split())[:FIELD_CHARS]
+    """One remote field on one line, redacted and capped."""
+    return _cut(" ".join(str(value or "").split()), FIELD_CHARS)
 
 
 def _item(source: dict[str, Any], kind: str, where: str, text: str, part: int = 0) -> SourceItem:
-    return SourceItem(source["id"], kind, where, redact(text[:ITEM_CHARS]), part)
+    return SourceItem(source["id"], kind, where, _cut(text, ITEM_CHARS), part)
 
 
 def _guard(collect: Callable[[dict[str, Any], Collected], None]) -> Callable[..., Collected]:
@@ -157,7 +162,7 @@ def _page(source: dict[str, Any], out: Collected) -> None:
         if first:
             queue = web.same_host_links(doc, start, NOT_PAGES)
             first = False
-        text = web.main_text(doc, PAGE_CHARS)
+        text = _cut(web.main_text(doc, web.MAX_BYTES), PAGE_CHARS)
         if not text or url in out.read:
             continue
         head = _f(web.title(doc))
@@ -205,7 +210,7 @@ def _read_feed(source: dict[str, Any], out: Collected, body: bytes, url: str) ->
         head = _f(_child(entry, "title"))
         when = _f(_child(entry, "pubdate", "published", "updated", "date"))
         summary = web.soup(_child(entry, "description", "summary", "content", "encoded"))
-        text = " ".join(summary.get_text(" ").split())[:SUMMARY_CHARS]
+        text = _cut(" ".join(summary.get_text(" ").split()), SUMMARY_CHARS)
         link = _child(entry, "link")
         where = link if link.startswith("https://") else f"{url}#{n}"
         out.items.append(
@@ -302,7 +307,7 @@ def _devpost_project(source: dict[str, Any], out: Collected, fetch: web.Fetcher,
     head = _f(name.get_text(" ", strip=True) if name else web.title(doc))
     tools = [_f(a.get_text(strip=True)) for a in doc.select("#built-with a")][:30]
     details = doc.select_one("#app-details-left")
-    story = " ".join(details.get_text(" ").split())[:PAGE_CHARS] if details else ""
+    story = _cut(" ".join(details.get_text(" ").split()), PAGE_CHARS) if details else ""
     tagline = _f(web.meta(doc, "og:description", "description"))
     text = f"Devpost project: {head}\nTagline: {tagline}\nBuilt with: {', '.join(tools)}\n\n{story}"
     out.items.append(_item(source, "devpost", url, text))
@@ -399,7 +404,7 @@ def _credly(source: dict[str, Any], out: Collected) -> None:
             f"Issued by: {_f((issuer or {}).get('summary'))}",
             f"Issued: {_f(badge.get('issued_at_date'))}",
             f"Skills: {', '.join(skills)}",
-            f"About: {str(tpl.get('description') or '')[:SUMMARY_CHARS]}",
+            f"About: {_cut(str(tpl.get('description') or ''), SUMMARY_CHARS)}",
         ]
         bid = str(badge.get("id") or "")
         where = f"https://www.credly.com/badges/{bid}" if NAME_RE.match(bid) else source["value"]

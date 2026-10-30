@@ -24,6 +24,8 @@ MAX_REDIRECTS = 3
 ROBOTS_REDIRECTS = 5  # RFC 9309: follow at least five
 MAX_RULES = 1000  # per robots.txt group
 MAX_RULE_CHARS = 512
+MAX_PATH_CHARS = 2048  # a longer URL path is not checked, so not read
+MAX_MATCH_STEPS = 200_000  # per allows() call, across every rule
 NOISE_TAGS = ("script", "style", "noscript", "template", "svg", "nav", "footer", "header",
               "form", "iframe", "button")  # fmt: skip
 
@@ -71,22 +73,30 @@ class Robots:
         return cls(mine if mine is not None else groups.get("*", []))
 
     def allows(self, url: str) -> bool:
+        """True when the rules let Sourcer read ``url``. Blocked when the path
+        is too long or the rules too costly to check: then it is not read."""
         if self.deny_all:
             return False
         parsed = urlparse(url)
         path = (parsed.path or "/") + (f"?{parsed.query}" if parsed.query else "")
+        if len(path) > MAX_PATH_CHARS:
+            raise Blocked(f"{url} is too long to check against robots.txt, so it is not read")
+        budget = [MAX_MATCH_STEPS]
         best: tuple[int, bool] | None = None
         for allow, pattern in self.rules:
-            if rule_matches(pattern, path):
+            if rule_matches(pattern, path, budget):
                 rank = (len(pattern), allow)
                 best = rank if best is None or rank > best else best
         return True if best is None else best[1]
 
 
-def rule_matches(pattern: str, path: str) -> bool:
+def rule_matches(pattern: str, path: str, budget: list[int] | None = None) -> bool:
     """Does a robots.txt rule match the start of ``path``? ``*`` is any run of
     characters and a final ``$`` anchors the end. A greedy two pointer match
-    with no regex, so a hostile rule cannot make it backtrack for long."""
+    with no regex. Every step spends one unit of ``budget`` (shared by all
+    rules of one check); Blocked when it runs out, so a hostile robots.txt
+    costs at most MAX_MATCH_STEPS steps per URL."""
+    budget = budget if budget is not None else [MAX_MATCH_STEPS]
     if pattern.endswith("$"):
         pattern = pattern[:-1]
     else:
@@ -94,6 +104,9 @@ def rule_matches(pattern: str, path: str) -> bool:
     p = s = 0
     star, mark = -1, 0
     while s < len(path):
+        budget[0] -= 1
+        if budget[0] < 0:
+            raise Blocked("robots.txt rules are too costly to check, so the page is not read")
         if p < len(pattern) and pattern[p] == "*":
             star, mark = p, s
             p += 1

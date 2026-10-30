@@ -103,7 +103,9 @@ def _named_in(skill: str, text: str) -> bool:
 
 
 # control characters, and bidi and line separator marks that can reorder a line
-CONTROL_RE = re.compile(r"[\x00-\x1f\x7f-\x9f\u2028\u2029\u202a-\u202e\u2066-\u2069]")
+CONTROL_RE = re.compile(
+    r"[\x00-\x1f\x7f-\x9f\u061c\u200e\u200f\u2028\u2029\u202a-\u202e\u2066-\u2069]"
+)
 
 
 def printable(text: Any) -> str:

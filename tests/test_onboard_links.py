@@ -15,7 +15,7 @@ from sourcer import config, net
 from sourcer.onboard import cli, collect, extract, links, store, web
 from sourcer.onboard.items import source_spec
 from tests.test_onboard_cli import Script
-from tests.test_onboard_collectors import FAKE_EMAIL, FakeResponse
+from tests.test_onboard_collectors import FAKE_EMAIL, FAKE_KEY, FakeResponse
 
 ROBOTS_OK = FakeResponse(200, "User-agent: *\nDisallow: /private\n")
 
@@ -505,3 +505,34 @@ def test_net_get_takes_a_lower_byte_cap() -> None:
     with pytest.raises(ValueError, match="over 15 bytes"):
         net._capped(Body(), 15)  # type: ignore[arg-type]
     assert net._capped(Body(), 100)._content == b"x" * 20  # type: ignore[arg-type,attr-defined]
+
+
+def test_robots_near_match_rules_cannot_stall(
+    onboard_paths: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    near = "*" + "a" * 509 + "b"
+    robots = web.Robots.parse("User-agent: *\n" + f"Disallow: {near}\n" * 1000)
+    started = time.monotonic()
+    with pytest.raises(web.Blocked, match="too long"):
+        robots.allows("https://h/" + "a" * 8000)
+    with pytest.raises(web.Blocked, match="too costly"):
+        robots.allows("https://h/" + "a" * 2000)
+    assert time.monotonic() - started < 1.0
+    assert robots.allows("https://h/short")
+    rules = FakeResponse(200, "User-agent: *\n" + f"Disallow: {near}\n" * 1000)
+    Web(monkeypatch, {"https://example.org/robots.txt": rules})
+    got = run("page", "https://example.org/" + "a" * 2000)
+    assert "too costly to check" in got.notes[0] and not got.items
+
+
+def test_a_secret_across_the_cut_is_masked_whole(
+    onboard_paths: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    key = FAKE_KEY
+    pad = "x" * (links.PAGE_CHARS - 12)
+    Web(monkeypatch, {"https://example.org/": html(f"<p>{pad} {key} tail</p>")})
+    text = run("page", "https://example.org/").items[0].text
+    assert key[:8] not in text and "sk-ant" not in text
+    feed = f"<rss><item><title>t</title><description>{'y' * 590} {key}</description></item></rss>"
+    Web(monkeypatch, {"https://example.org/f.xml": FakeResponse(200, feed)})
+    assert "sk-ant" not in run("feed", "https://example.org/f.xml").items[0].text

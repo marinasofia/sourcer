@@ -4,7 +4,8 @@ Per project it reads only the README and package manifests at the project
 root, counts files by extension (names only, never contents), and asks git
 for the first and last commit dates. Everything ``privacy`` rules out is
 skipped before any file is opened: secrets and keys, gitignored files,
-dependencies and build output, hidden files, links, binaries and large files.
+dependencies and build output, hidden files, links, special files (FIFOs,
+sockets, devices), binaries and large files.
 A folder that is not itself a project is treated as a folder of projects.
 """
 
@@ -20,7 +21,14 @@ from typing import Any
 
 from .. import config
 from .items import Collected, SourceItem
-from .privacy import IgnoreRules, content_reason, dir_skip_reason, name_reason, redact
+from .privacy import (
+    IgnoreRules,
+    content_reason,
+    dir_skip_reason,
+    name_reason,
+    read_regular,
+    redact,
+)
 
 MANIFESTS = (
     "pyproject.toml", "setup.cfg", "requirements.txt", "environment.yml", "package.json",
@@ -156,10 +164,10 @@ def git_dates(root: Path) -> tuple[str, str, int] | None:
 
 
 def _read(path: Path, limit: int) -> str:
-    try:
-        return path.read_text(encoding="utf-8", errors="replace")[:limit]
-    except OSError:
-        return ""
+    """A regular file's text, redacted and then cut to ``limit``. Links,
+    FIFOs and devices are never read (privacy.read_regular)."""
+    raw = read_regular(path, config.ONBOARD_MAX_FILE_BYTES)
+    return "" if raw is None else redact(raw.decode("utf-8", errors="replace"))[:limit]
 
 
 def project_excerpt(project: Project) -> str:

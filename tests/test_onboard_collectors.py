@@ -16,7 +16,7 @@ import pytest
 import requests
 
 from sourcer import config
-from sourcer.onboard import collect, folders, github, linkedin, privacy, resume, store
+from sourcer.onboard import collect, extract, folders, github, linkedin, privacy, resume, store
 from sourcer.onboard.items import source_spec
 
 # made up secrets, built in pieces so no scanner mistakes them for real ones
@@ -494,3 +494,26 @@ def test_redact_more_token_formats() -> None:
     }
     for text, secret in samples.items():
         assert secret not in privacy.redact(text), text
+
+
+def test_folder_secret_across_the_cut_and_fifo_readme(tmp_path: Path) -> None:
+    project = tmp_path / "proj"
+    project.mkdir()
+    (project / "pyproject.toml").write_text("p" * (folders.MANIFEST_CHARS - 6) + f" {FAKE_KEY}\n")
+    os.mkfifo(project / "README.md")  # opening a FIFO would block forever
+    got = folders.collect(spec("folder", str(project)))
+    text = got.items[0].text
+    assert "sk-ant" not in text and "README.md:" not in text
+    assert folders.plan(project).skipped["special files"] == 1
+    assert privacy.read_regular(project / "README.md", 10) is None
+    link = project / "link.md"
+    link.symlink_to(project / "pyproject.toml")
+    assert privacy.read_regular(link, 10) is None  # O_NOFOLLOW
+
+
+def test_root_double_star_and_invisible_marks(tmp_path: Path) -> None:
+    rules = privacy.IgnoreRules(tmp_path, ["**/README.md"])
+    assert rules.ignored(tmp_path / "README.md") and rules.ignored(tmp_path / "a" / "README.md")
+    assert not rules.ignored(tmp_path / "README.rst")
+    marks = "".join(map(chr, (0x200E, 0x200F, 0x061C)))
+    assert extract.printable(f"a{marks}b") == "ab"

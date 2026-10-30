@@ -95,7 +95,7 @@ def _languages(user: str, name: str, source_id: str) -> str:
 
 def _readme(user: str, name: str, source_id: str) -> str:
     resp = _get(f"/repos/{user}/{name}/readme", source_id, accept="application/vnd.github.raw")
-    return "" if resp is None else resp.text[:README_CHARS]
+    return "" if resp is None else redact(resp.text)[:README_CHARS]
 
 
 def repo_excerpt(repo: dict[str, Any], languages: str, readme: str) -> str:

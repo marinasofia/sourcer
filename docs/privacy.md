@@ -37,7 +37,7 @@ Only the sources you add, when you add them and again when you run
 In a folder Sourcer never opens `.env` files, keys, certificates, credential or
 secret files, anything `.gitignore` excludes, dependency and build folders
 (`node_modules`, `.venv`, `venv`, `dist`, `build` and similar), hidden files,
-links, binaries, or files over `SOURCER_ONBOARD_MAX_FILE_BYTES` (200,000 bytes by
+links, special files such as FIFOs, binaries, or files over `SOURCER_ONBOARD_MAX_FILE_BYTES` (200,000 bytes by
 default). Before it scans a folder it shows how many files it will read and
 asks. You can exclude subfolders with globs; they are kept in `sources.json`.
 

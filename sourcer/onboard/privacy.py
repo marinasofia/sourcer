@@ -8,7 +8,9 @@ rule matches, and a .gitignore negation ("!keep.txt") never brings a file back.
 from __future__ import annotations
 
 import fnmatch
+import os
 import re
+import stat
 from pathlib import Path
 
 # directories that hold dependencies or build output, never the candidate's work
@@ -33,7 +35,8 @@ BINARY_SUFFIXES = frozenset(
 
 def name_reason(path: Path, max_bytes: int) -> str | None:
     """Why a file must not be read, judged without opening it: a link, a
-    secret or key by its name, a hidden file, a binary type, or its size."""
+    secret or key by its name, a hidden file, a binary type, not a regular
+    file (a FIFO, socket or device can block when opened), or its size."""
     name = path.name
     if path.is_symlink():
         return "links"
@@ -44,19 +47,45 @@ def name_reason(path: Path, max_bytes: int) -> str | None:
     if path.suffix.lower() in BINARY_SUFFIXES:
         return "binaries"
     try:
-        return "large files" if path.stat().st_size > max_bytes else None
+        info = path.lstat()
     except OSError:
         return "unreadable"
+    if not stat.S_ISREG(info.st_mode):
+        reason: str | None = "special files"
+    else:
+        reason = "large files" if info.st_size > max_bytes else None
+    return reason
 
 
 def content_reason(path: Path) -> str | None:
     """ "binaries" when the first bytes hold a NUL. Only for a file that is
     about to be read and passed every other rule."""
-    try:
-        with path.open("rb") as fh:
-            return "binaries" if b"\0" in fh.read(4096) else None
-    except OSError:
+    head = read_regular(path, 4096)
+    if head is None:
         return "unreadable"
+    return "binaries" if b"\0" in head else None
+
+
+def read_regular(path: Path, limit: int) -> bytes | None:
+    """Up to ``limit`` bytes of ``path`` when it is a regular file. Opened
+    without following a link and without blocking, then checked with fstat,
+    so a FIFO or a file swapped for a link after the walk is never read."""
+    flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0)
+    try:
+        fd = os.open(path, flags)
+    except OSError:
+        return None
+    try:
+        if not stat.S_ISREG(os.fstat(fd).st_mode):
+            return None
+        with os.fdopen(fd, "rb") as fh:
+            fd = -1
+            return fh.read(limit)
+    except OSError:
+        return None
+    finally:
+        if fd >= 0:
+            os.close(fd)
 
 
 def skip_reason(path: Path, max_bytes: int) -> str | None:
@@ -108,9 +137,10 @@ class IgnoreRules:
                 continue
             sub = rel[len(base) + 1 :] if base else rel
             if "/" in pattern:
-                if fnmatch.fnmatch(sub, pattern.lstrip("/")) or fnmatch.fnmatch(
-                    sub, pattern.lstrip("/") + "/*"
-                ):
+                rooted = pattern.lstrip("/")
+                # "**/x" also names x at the top, as in git
+                forms = [rooted, rooted[3:]] if rooted.startswith("**/") else [rooted]
+                if any(fnmatch.fnmatch(sub, f) or fnmatch.fnmatch(sub, f + "/*") for f in forms):
                     return True
             elif any(fnmatch.fnmatch(part, pattern) for part in sub.split("/")):
                 return True

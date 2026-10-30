@@ -150,7 +150,8 @@ URL names:
 LinkedIn links are refused: LinkedIn is read only from the export zip
 (`--linkedin-export`). A GitHub profile link becomes a GitHub source. Every
 request checks robots.txt first (an unreadable robots.txt means nothing is
-read there), sends `User-Agent: Sourcer/VERSION (+https://github.com/marinasofia/sourcer)`,
+read there; a URL path over 2,048 characters, or rules too costly to check
+within a fixed step budget, means that page is not read), sends `User-Agent: Sourcer/VERSION (+https://github.com/marinasofia/sourcer)`,
 times out, reads at most 2,000,000 bytes per reply, never follows a redirect
 to another host, and is written to the call log.
 
