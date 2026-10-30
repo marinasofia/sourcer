@@ -7,7 +7,6 @@ only public HTTPS addresses, and is written to the onboarding call log.
 
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass, field
 from typing import Any
 from urllib.parse import urljoin, urlparse
@@ -22,6 +21,9 @@ PRODUCT = "Sourcer"
 USER_AGENT = f"{PRODUCT}/{__version__} (+https://github.com/marinasofia/sourcer)"
 MAX_BYTES = 2_000_000  # one page or API reply
 MAX_REDIRECTS = 3
+ROBOTS_REDIRECTS = 5  # RFC 9309: follow at least five
+MAX_RULES = 1000  # per robots.txt group
+MAX_RULE_CHARS = 512
 NOISE_TAGS = ("script", "style", "noscript", "template", "svg", "nav", "footer", "header",
               "form", "iframe", "button")  # fmt: skip
 
@@ -61,9 +63,10 @@ class Robots:
                     groups.setdefault(agent, [])
             elif key in ("allow", "disallow") and agents:
                 in_rules = True
-                if value:  # an empty Disallow allows everything
+                if value and len(value) <= MAX_RULE_CHARS:  # an empty Disallow allows all
                     for agent in agents:
-                        groups[agent].append((key == "allow", value))
+                        if len(groups[agent]) < MAX_RULES:
+                            groups[agent].append((key == "allow", value))
         mine = groups.get(PRODUCT.lower())
         return cls(mine if mine is not None else groups.get("*", []))
 
@@ -74,16 +77,35 @@ class Robots:
         path = (parsed.path or "/") + (f"?{parsed.query}" if parsed.query else "")
         best: tuple[int, bool] | None = None
         for allow, pattern in self.rules:
-            if _rule_re(pattern).match(path):
+            if rule_matches(pattern, path):
                 rank = (len(pattern), allow)
                 best = rank if best is None or rank > best else best
         return True if best is None else best[1]
 
 
-def _rule_re(pattern: str) -> re.Pattern[str]:
-    end = pattern.endswith("$")
-    body = ".*".join(re.escape(part) for part in pattern.rstrip("$").split("*"))
-    return re.compile(body + ("$" if end else ""))
+def rule_matches(pattern: str, path: str) -> bool:
+    """Does a robots.txt rule match the start of ``path``? ``*`` is any run of
+    characters and a final ``$`` anchors the end. A greedy two pointer match
+    with no regex, so a hostile rule cannot make it backtrack for long."""
+    if pattern.endswith("$"):
+        pattern = pattern[:-1]
+    else:
+        pattern += "*"  # a rule matches a prefix of the path
+    p = s = 0
+    star, mark = -1, 0
+    while s < len(path):
+        if p < len(pattern) and pattern[p] == "*":
+            star, mark = p, s
+            p += 1
+        elif p < len(pattern) and pattern[p] == path[s]:
+            p += 1
+            s += 1
+        elif star >= 0:
+            p, mark = star + 1, mark + 1
+            s = mark
+        else:
+            return False
+    return all(c == "*" for c in pattern[p:])
 
 
 # ---------------------------------------------------------------- fetching
@@ -98,32 +120,46 @@ class Fetcher:
         self.last_url = ""  # where the last get() ended, after same host redirects
 
     def _raw(self, url: str, accept: str) -> requests.Response:
-        resp = net.get(
-            url,
-            headers={"User-Agent": USER_AGENT, "Accept": accept},
-            timeout=config.REQUEST_TIMEOUT,
-            allow_redirects=False,
-        )
-        parsed = urlparse(url)
-        audit(str(parsed.hostname), f"GET {parsed.path or '/'}", [self.source_id],
-              len(resp.content or b""))  # fmt: skip
+        """One GET, logged whether it succeeds or fails (0 characters then)."""
+        size = 0
+        try:
+            resp = net.get(
+                url,
+                headers={"User-Agent": USER_AGENT, "Accept": accept},
+                timeout=config.REQUEST_TIMEOUT,
+                allow_redirects=False,
+                max_bytes=MAX_BYTES + 1,
+            )
+            size = len(resp.content or b"")
+        finally:
+            parsed = urlparse(url)
+            audit(str(parsed.hostname), f"GET {parsed.path or '/'}", [self.source_id], size)
         return resp
 
     def _robots(self, url: str) -> Robots:
         host = str(urlparse(url).hostname)
         if host not in self.robots:
-            try:
-                resp = self._raw(f"https://{host}/robots.txt", "text/plain")
-            except requests.RequestException:
-                self.robots[host] = Robots(deny_all=True)
-                return self.robots[host]
-            if resp.status_code >= 500:
-                self.robots[host] = Robots(deny_all=True)  # unreachable: read nothing
-            elif resp.status_code >= 300:
-                self.robots[host] = Robots()  # missing or moved: no rules
-            else:
-                self.robots[host] = Robots.parse(resp.text[:MAX_BYTES])
+            self.robots[host] = self._read_robots(f"https://{host}/robots.txt")
         return self.robots[host]
+
+    def _read_robots(self, url: str) -> Robots:
+        """robots.txt by RFC 9309: redirects followed (up to five, any public
+        HTTPS host), 4xx means no rules, 5xx, 429 or no answer means read nothing."""
+        for _ in range(ROBOTS_REDIRECTS + 1):
+            try:
+                resp = self._raw(url, "text/plain")
+            except requests.RequestException:
+                return Robots(deny_all=True)
+            location = resp.headers.get("Location")
+            if 300 <= resp.status_code < 400 and location:
+                url = urljoin(url, location)
+                continue
+            if resp.status_code >= 500 or resp.status_code == 429:
+                return Robots(deny_all=True)
+            if resp.status_code >= 300:
+                return Robots()  # missing: no rules
+            return Robots.parse(resp.text[:MAX_BYTES])
+        return Robots(deny_all=True)
 
     def get(self, url: str, accept: str = "text/html,application/xhtml+xml") -> requests.Response:
         """GET ``url`` after robots.txt allows it. Redirects are followed only
@@ -151,7 +187,7 @@ class Fetcher:
                     )
                 current = target
                 continue
-            if resp.status_code >= 400:
+            if resp.status_code >= 300:  # a 3xx with no Location, or 4xx and 5xx
                 raise Blocked(f"{host} answered {resp.status_code} for {current}")
             if len(resp.content or b"") > MAX_BYTES:
                 raise Blocked(f"{current} is over {MAX_BYTES:,} bytes, not read")

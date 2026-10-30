@@ -4,14 +4,15 @@ User-Agent, page and byte caps, same host redirects, redaction and the log."""
 from __future__ import annotations
 
 import json
+import time
 from pathlib import Path
 from typing import Any
 
 import pytest
 import requests
 
-from sourcer import config
-from sourcer.onboard import cli, collect, links, store, web
+from sourcer import config, net
+from sourcer.onboard import cli, collect, extract, links, store, web
 from sourcer.onboard.items import source_spec
 from tests.test_onboard_cli import Script
 from tests.test_onboard_collectors import FAKE_EMAIL, FakeResponse
@@ -414,3 +415,93 @@ def test_init_add_links_by_kind(onboard_paths: Path, tmp_path: Path) -> None:
     assert json.loads(config.SOURCES_PATH.read_text())["sources"][0]["label"] == (
         "https://huggingface.co/octo-example"
     )
+
+
+# ---------------------------------------------------------------- hardening
+
+
+def test_dtd_refused_past_comments_and_in_utf16(
+    onboard_paths: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    base = "https://blog.example.org"
+    dtd = '<!DOCTYPE r [<!ENTITY a "aaaaaaaaaa">]><rss><item><title>&a;&a;</title></item></rss>'
+    long_comment = '<?xml version="1.0"?><!--' + "x" * 30000 + "-->" + dtd
+    utf16 = ('<?xml version="1.0" encoding="UTF-16"?>' + dtd).encode("utf-16")
+    Web(monkeypatch, {f"{base}/a.xml": FakeResponse(200, long_comment),
+                      f"{base}/b.xml": FakeResponse(200, "")})  # fmt: skip
+    assert "declares a DTD" in run("feed", f"{base}/a.xml").notes[0]
+    got = collect.Collected()
+    with pytest.raises(web.Blocked, match="declares a DTD"):
+        links._read_feed(source_spec("feed", f"{base}/b.xml"), got, utf16, f"{base}/b.xml")
+    assert not got.items
+
+
+def test_robots_wildcards_match_without_backtracking() -> None:
+    hostile = "/" + "*a" * 40 + "$"
+    robots = web.Robots.parse(f"User-agent: *\nDisallow: {hostile}\n")
+    started = time.monotonic()
+    assert robots.allows("https://h/" + "a" * 2000 + "b")
+    assert time.monotonic() - started < 1.0
+    assert web.rule_matches("/a*c$", "/abbc") and not web.rule_matches("/a*c$", "/abcd")
+    assert web.rule_matches("/a*c", "/abcd") and web.rule_matches("/", "/x")
+    assert not web.rule_matches("/x", "/")
+    many = "User-agent: *\n" + "Disallow: /d\n" * 1500 + "Disallow: /" + "y" * 600 + "\n"
+    assert len(web.Robots.parse(many).rules) == web.MAX_RULES
+
+
+def test_robots_redirects_failures_and_3xx_without_location(
+    onboard_paths: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    moved = FakeResponse(301, "", {"Location": "https://www.example.org/robots.txt"})
+    fake = Web(monkeypatch, {
+        "https://example.org/robots.txt": moved,
+        "https://www.example.org/robots.txt": FakeResponse(200, "User-agent: *\nDisallow: /\n"),
+    })  # fmt: skip
+    assert "asks tools not to read" in run("page", "https://example.org/").notes[0]
+    assert fake.urls == ["https://example.org/robots.txt", "https://www.example.org/robots.txt"]
+    Web(monkeypatch, {"https://example.org/robots.txt": FakeResponse(429, "")})
+    assert "could not be read" in run("page", "https://example.org/").notes[0]
+    loop = FakeResponse(302, "", {"Location": "/robots.txt"})
+    Web(monkeypatch, {"https://example.org/robots.txt": loop})
+    assert "could not be read" in run("page", "https://example.org/").notes[0]
+    Web(monkeypatch, {"https://example.org/": FakeResponse(302, "<p>not a page</p>")})
+    assert "answered 302" in run("page", "https://example.org/").notes[0]
+    # a request that fails is still in the call log
+    config.ONBOARD_LOG_PATH.unlink(missing_ok=True)
+    Web(monkeypatch, {"https://example.org/": requests.ConnectionError("reset")})
+    run("page", "https://example.org/")
+    log = store.read_audit()
+    assert [(e["action"], e["chars"]) for e in log] == [("GET /robots.txt", 0), ("GET /", 0)]
+
+
+def test_remote_fields_are_capped_and_bidi_marks_removed(
+    onboard_paths: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    Web(
+        monkeypatch,
+        {
+            "https://example.org/": html(
+                "<p>" + "word " * 5000 + "</p>", "<title>" + "T" * 900 + "</title>"
+            )
+        },
+    )
+    item = run("page", "https://example.org/").items[0]
+    assert len(item.text) <= links.ITEM_CHARS and "T" * 301 not in item.text
+    marks = "".join(map(chr, (0x202E, 0x2066, 0x2028)))
+    assert extract.printable(f"ok{marks[0]}gnirts{marks[1]}x{marks[2]}y") == "okgnirtsxy"
+
+
+def test_net_get_takes_a_lower_byte_cap() -> None:
+    class Body:
+        url = "https://example.org/"
+
+        def iter_content(self, size: int) -> Any:
+            yield b"x" * 10
+            yield b"x" * 10
+
+        def close(self) -> None:
+            pass
+
+    with pytest.raises(ValueError, match="over 15 bytes"):
+        net._capped(Body(), 15)  # type: ignore[arg-type]
+    assert net._capped(Body(), 100)._content == b"x" * 20  # type: ignore[arg-type,attr-defined]

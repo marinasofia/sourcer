@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import re
 import xml.etree.ElementTree as ET
+import xml.parsers.expat
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -91,8 +92,17 @@ def describe(kind: str, url: str) -> str:
     }.get(kind, "I'll read this link.") + " robots.txt is respected."  # fmt: skip
 
 
+ITEM_CHARS = PAGE_CHARS + 1000  # one item's excerpt, whatever a remote field holds
+FIELD_CHARS = 300  # one remote title, date, name or tag
+
+
+def _f(value: Any) -> str:
+    """One remote field on one line, capped."""
+    return " ".join(str(value or "").split())[:FIELD_CHARS]
+
+
 def _item(source: dict[str, Any], kind: str, where: str, text: str, part: int = 0) -> SourceItem:
-    return SourceItem(source["id"], kind, where, redact(text), part)
+    return SourceItem(source["id"], kind, where, redact(text[:ITEM_CHARS]), part)
 
 
 def _guard(collect: Callable[[dict[str, Any], Collected], None]) -> Callable[..., Collected]:
@@ -150,7 +160,7 @@ def _page(source: dict[str, Any], out: Collected) -> None:
         text = web.main_text(doc, PAGE_CHARS)
         if not text or url in out.read:
             continue
-        head = web.title(doc)
+        head = _f(web.title(doc))
         out.items.append(_item(source, "page", url, f"Page: {head}\nURL: {url}\n\n{text}"))
         out.read.append(url)
 
@@ -168,17 +178,32 @@ def _child(entry: ET.Element, *names: str) -> str:
     return ""
 
 
-def _read_feed(source: dict[str, Any], out: Collected, body: bytes, url: str) -> None:
-    if re.search(rb"<!\s*(doctype|entity)", body[:20000], re.I):
+def _refuse_dtd(body: bytes, url: str) -> None:
+    """Parse once with expat and stop at any DTD or entity declaration, in any
+    encoding and at any depth, so ElementTree never expands an entity."""
+
+    def refuse(*_args: Any) -> None:
         raise web.Blocked(f"{url} declares a DTD; Sourcer does not read those feeds")
+
+    parser = xml.parsers.expat.ParserCreate()
+    parser.StartDoctypeDeclHandler = refuse
+    parser.EntityDeclHandler = refuse
     try:
-        root = ET.fromstring(body)  # noqa: S314 (no DTD, so no entity expansion)
+        parser.Parse(body, True)
+    except xml.parsers.expat.ExpatError as exc:
+        raise web.Blocked(f"{url} is not a feed Sourcer can read") from exc
+
+
+def _read_feed(source: dict[str, Any], out: Collected, body: bytes, url: str) -> None:
+    _refuse_dtd(body, url)
+    try:
+        root = ET.fromstring(body)  # noqa: S314 (_refuse_dtd ran first: no entities)
     except ET.ParseError as exc:
         raise web.Blocked(f"{url} is not a feed Sourcer can read") from exc
     entries = [el for el in root.iter() if _local(el.tag) in ("item", "entry")]
     for n, entry in enumerate(entries[:MAX_ENTRIES]):
-        head = _child(entry, "title")
-        when = _child(entry, "pubdate", "published", "updated", "date")
+        head = _f(_child(entry, "title"))
+        when = _f(_child(entry, "pubdate", "published", "updated", "date"))
         summary = web.soup(_child(entry, "description", "summary", "content", "encoded"))
         text = " ".join(summary.get_text(" ").split())[:SUMMARY_CHARS]
         link = _child(entry, "link")
@@ -251,11 +276,11 @@ def _huggingface(source: dict[str, Any], out: Collected) -> None:
             rid = str(row.get("id", "")) if isinstance(row, dict) else ""
             if not HF_ID_RE.match(rid) or ".." in rid:
                 continue
-            tags = [str(t) for t in row.get("tags") or [] if not str(t).startswith(HF_NOISE)]
+            tags = [_f(t) for t in row.get("tags") or [] if not str(t).startswith(HF_NOISE)]
             lines = [
                 f"Hugging Face {kind[:-1]}: {rid}",
-                f"Task: {row.get('pipeline_tag') or ''}",
-                f"Library or SDK: {row.get('library_name') or row.get('sdk') or ''}",
+                f"Task: {_f(row.get('pipeline_tag'))}",
+                f"Library or SDK: {_f(row.get('library_name') or row.get('sdk'))}",
                 f"Tags: {', '.join(tags[:15])}",
                 f"Likes: {row.get('likes') or 0}, downloads: {row.get('downloads') or 0}",
                 f"Created: {str(row.get('createdAt') or '')[:10]}",
@@ -274,11 +299,11 @@ def _huggingface(source: dict[str, Any], out: Collected) -> None:
 def _devpost_project(source: dict[str, Any], out: Collected, fetch: web.Fetcher, url: str) -> None:
     doc = web.soup(fetch.get(url).text)
     name = doc.select_one("#app-title")
-    head = name.get_text(" ", strip=True) if name else web.title(doc)
-    tools = [a.get_text(strip=True) for a in doc.select("#built-with a")]
+    head = _f(name.get_text(" ", strip=True) if name else web.title(doc))
+    tools = [_f(a.get_text(strip=True)) for a in doc.select("#built-with a")][:30]
     details = doc.select_one("#app-details-left")
     story = " ".join(details.get_text(" ").split())[:PAGE_CHARS] if details else ""
-    tagline = web.meta(doc, "og:description", "description")
+    tagline = _f(web.meta(doc, "og:description", "description"))
     text = f"Devpost project: {head}\nTagline: {tagline}\nBuilt with: {', '.join(tools)}\n\n{story}"
     out.items.append(_item(source, "devpost", url, text))
     out.read.append(head or url)
@@ -367,19 +392,19 @@ def _credly(source: dict[str, Any], out: Collected) -> None:
         if not isinstance(badge, dict) or not isinstance(badge.get("badge_template"), dict):
             continue
         tpl = badge["badge_template"]
-        skills = [str(s.get("name")) for s in tpl.get("skills") or [] if isinstance(s, dict)]
+        skills = [_f(s.get("name")) for s in tpl.get("skills") or [] if isinstance(s, dict)][:30]
         issuer = badge.get("issuer") if isinstance(badge.get("issuer"), dict) else {}
         lines = [
-            f"Credly badge: {tpl.get('name') or ''}",
-            f"Issued by: {(issuer or {}).get('summary') or ''}",
-            f"Issued: {badge.get('issued_at_date') or ''}",
+            f"Credly badge: {_f(tpl.get('name'))}",
+            f"Issued by: {_f((issuer or {}).get('summary'))}",
+            f"Issued: {_f(badge.get('issued_at_date'))}",
             f"Skills: {', '.join(skills)}",
             f"About: {str(tpl.get('description') or '')[:SUMMARY_CHARS]}",
         ]
         bid = str(badge.get("id") or "")
         where = f"https://www.credly.com/badges/{bid}" if NAME_RE.match(bid) else source["value"]
         out.items.append(_item(source, "credly", str(where), "\n".join(lines)))
-        out.read.append(str(tpl.get("name") or bid))
+        out.read.append(_f(tpl.get("name") or bid))
     if not out.items:
         out.notes.append(f"no public badges for {user}")
 

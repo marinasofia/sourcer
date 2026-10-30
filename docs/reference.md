@@ -173,7 +173,7 @@ says so; the next `sourcer sync` in a terminal asks. To run it weekly on your
 own computer, add a cron line (`crontab -e`), Monday at 8:00:
 
 ```
-0 8 * * 1 cd /path/to/sourcer && .venv/bin/sourcer sync --quiet --yes >> data/sync.log 2>&1
+0 8 * * 1 umask 077; cd /path/to/sourcer && .venv/bin/sourcer sync --quiet --yes >> data/sync.log 2>&1
 ```
 
 Leave out `--yes` to be asked first. The private data workflow does not run

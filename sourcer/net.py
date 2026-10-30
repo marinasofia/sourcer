@@ -202,16 +202,17 @@ def _public_session() -> SafeSession:
     return session
 
 
-def _capped(response: requests.Response) -> requests.Response:
-    """Read the streamed body within MAX_BODY_BYTES and MAX_READ_SECONDS."""
+def _capped(response: requests.Response, limit: int = MAX_BODY_BYTES) -> requests.Response:
+    """Read the streamed body within ``limit`` bytes and MAX_READ_SECONDS."""
+    limit = min(limit, MAX_BODY_BYTES)
     deadline = time.monotonic() + MAX_READ_SECONDS
     chunks: list[bytes] = []
     size = 0
     try:
         for chunk in response.iter_content(64 * 1024):  # decompressed bytes
             size += len(chunk)
-            if size > MAX_BODY_BYTES:
-                raise ValueError(f"response over {MAX_BODY_BYTES} bytes: {response.url}")
+            if size > limit:
+                raise ValueError(f"response over {limit} bytes: {response.url}")
             if time.monotonic() > deadline:
                 raise requests.Timeout(f"response over {MAX_READ_SECONDS:.0f}s: {response.url}")
             chunks.append(chunk)
@@ -228,7 +229,8 @@ class Refused(requests.RequestException, ValueError):
 
 def get(url: str, **kwargs: Any) -> requests.Response:
     """GET an untrusted URL: public HTTPS only, every redirect checked, the
-    connection pinned to the checked address, the body size and time capped."""
+    connection pinned to the checked address, the body size and time capped.
+    ``max_bytes`` lowers the body cap for this call."""
     return _guarded("GET", url, kwargs)
 
 
@@ -239,8 +241,9 @@ def post(url: str, **kwargs: Any) -> requests.Response:
 
 def _guarded(method: str, url: str, kwargs: dict[str, Any]) -> requests.Response:
     kwargs["stream"] = True
+    limit = int(kwargs.pop("max_bytes", MAX_BODY_BYTES))
     try:
-        return _capped(_public_session().request(method, url, **kwargs))
+        return _capped(_public_session().request(method, url, **kwargs), limit)
     except requests.RequestException:
         raise
     except ValueError as exc:
