@@ -20,7 +20,7 @@ publications  a TXT or MD file of publications, pasted by hand
 from __future__ import annotations
 
 import re
-import xml.etree.ElementTree as ET
+import xml.etree.ElementTree as ET  # nosec B405  _refuse_dtd rejects DTDs and entities first
 import xml.parsers.expat
 from collections.abc import Callable
 from pathlib import Path
@@ -202,7 +202,7 @@ def _refuse_dtd(body: bytes, url: str) -> None:
 def _read_feed(source: dict[str, Any], out: Collected, body: bytes, url: str) -> None:
     _refuse_dtd(body, url)
     try:
-        root = ET.fromstring(body)  # noqa: S314 (_refuse_dtd ran first: no entities)
+        root = ET.fromstring(body)  # noqa: S314  # nosec B314  _refuse_dtd ran first
     except ET.ParseError as exc:
         raise web.Blocked(f"{url} is not a feed Sourcer can read") from exc
     entries = [el for el in root.iter() if _local(el.tag) in ("item", "entry")]

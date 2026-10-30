@@ -252,7 +252,8 @@ def compute(
         reason = [_depth_phrase(kinds, s.shipped), when,
                   "named by " + joined([SOURCE_LABELS.get(t, t) for t in types])]  # fmt: skip
         if enough:
-            assert postings is not None
+            if postings is None:  # enough implies postings were loaded
+                raise RuntimeError("postings missing while demand is enabled")
             pattern = _pattern([shown, *synonyms])
             share = sum(1 for p in postings if pattern.search(p)) / len(postings)
             total += PARTS["demand"] * min(share / FULL_DEMAND, 1.0)

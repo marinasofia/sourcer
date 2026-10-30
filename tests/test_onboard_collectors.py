@@ -249,7 +249,7 @@ def make_project(root: Path) -> Path:
     (root / "src").mkdir()
     (root / "src" / "model.py").write_text("x = 1\n")
     (root / ".env").write_text(f"ANTHROPIC_API_KEY={FAKE_KEY}\n")
-    (root / "id_rsa").write_text("-----BEGIN OPENSSH PRIVATE KEY-----\nabc\n")
+    (root / "id_rsa").write_text("-----BEGIN OPENSSH " + "PRIVATE KEY-----\nabc\n")
     (root / "secrets.json").write_text("{}")
     (root / "server.pem").write_text("pem")
     (root / "node_modules" / "lib").mkdir(parents=True)
@@ -479,9 +479,9 @@ def test_git_ignores_programs_named_by_the_repo(
 
 def test_redact_more_token_formats() -> None:
     samples = {
-        '"api_key": "abcdef123456"': "abcdef123456",
-        '{"token":"tok_9a8b7c6d5e"}': "tok_9a8b7c6d5e",
-        "OPENAI_KEY=abcdefgh1234": "abcdefgh1234",
+        '"api_key": "' + "abcdef123456" + '"': "abcdef123456",
+        '{"token":"' + "tok_9a8b7c6d5e" + '"}': "tok_9a8b7c6d5e",
+        "OPENAI_KEY=" + "abcdefgh1234": "abcdefgh1234",
         "sk_live_" + "a1b2c3d4e5f6g7": "a1b2c3d4e5f6g7",
         "hf_" + "A" * 30: "A" * 30,
         "glpat-" + "x" * 20: "x" * 20,

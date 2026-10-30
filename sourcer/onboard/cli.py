@@ -181,7 +181,8 @@ def build_profile(console: Console, args: argparse.Namespace) -> tuple[dict[str,
     if not match:
         console.say(f"  {grad!r} is not YYYY-MM; using {_next_may()}.")
         match = re.fullmatch(r"(20\d\d)-(\d\d)", _next_may())
-    assert match is not None
+    if match is None:  # _next_may always returns YYYY-MM
+        raise RuntimeError("could not work out a graduation month")
     year, month = int(match.group(1)), int(match.group(2))
     degree = args.degree or console.ask("  Degree [Bachelor's]: ", "Bachelor's")
     auth = args.work_auth or console.ask(
