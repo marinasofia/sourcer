@@ -147,8 +147,9 @@ def test_page_reads_main_text_on_the_same_host(
         fake.urls
     )
     assert fake.urls.count("https://example.org/robots.txt") == 1
-    assert all(h["User-Agent"].startswith("Sourcer/") and "github.com" in h["User-Agent"]
-               for _, h in fake.calls)  # fmt: skip
+    assert all(h["User-Agent"] == web.USER_AGENT for _, h in fake.calls)
+    assert web.USER_AGENT.startswith("Sourcer/")
+    assert web.USER_AGENT.endswith("(+https://github.com/marinasofia/sourcer)")
     log = store.read_audit()
     assert {e["destination"] for e in log} == {"example.org"}
     assert all(set(e) == {"ts", "destination", "action", "sources", "chars"} for e in log)
