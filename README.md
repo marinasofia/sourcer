@@ -139,10 +139,14 @@ offers project folders and links, and reads each one as you add it. It uses
 your own Claude CLI login when `claude` is installed, otherwise your
 `ANTHROPIC_API_KEY`. You approve each fact it finds (`sourcer facts review`),
 and only approved facts are used for scoring. Then `sourcer` builds your list.
+Skill weights are computed from those facts, each with its reason
+(`sourcer skills`), and `sourcer sync` rechecks your sources and queues only
+what changed.
 
 Your data stays with you: it is kept in local files, and nothing goes to this
 project. Only short redacted excerpts leave, to Anthropic through your own
-Claude login or key, plus GitHub's public API for your username.
+Claude login or key, plus GitHub's public API for your username and the
+links you add.
 `sourcer forget` removes one source or everything; see
 [docs/privacy.md](docs/privacy.md).
 

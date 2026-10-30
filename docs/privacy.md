@@ -15,7 +15,8 @@ is used, and `sourcer forget` removes one source or everything.
 
 ## What Sourcer reads
 
-Only the sources you add, each at the moment you add it:
+Only the sources you add, when you add them and again when you run
+`sourcer sync` (which skips what did not change):
 
 - your resume file (PDF, DOCX, TXT or MD);
 - the public repositories of the GitHub username you give: name, description,
@@ -26,7 +27,12 @@ Only the sources you add, each at the moment you add it:
   dates from git;
 - the LinkedIn data export zip you downloaded yourself: Positions, Projects,
   Skills, Certifications and Education. Sourcer never visits LinkedIn;
-- links you add. They are saved now; reading them comes in a later version.
+- links you add: a portfolio or any web page (its main text and up to a few
+  more pages on the same site), a blog feed (titles, dates, summaries), and
+  public Kaggle, Hugging Face, Devpost, Google Scholar and Credly pages or
+  APIs for the profile you give. A publications list can be a text file
+  instead. Sourcer checks each site's robots.txt first and never follows a
+  link to another site.
 
 In a folder Sourcer never opens `.env` files, keys, certificates, credential or
 secret files, anything `.gitignore` excludes, dependency and build folders
@@ -51,7 +57,9 @@ never kept as facts.
    keeps: <https://www.anthropic.com/legal/privacy>.
 2. **Requests to api.github.com** for the username you give, public data only.
    `GITHUB_TOKEN`, when you set it, is sent only there.
-3. **Requests to the links you add**, once link reading exists.
+3. **Requests to the links you add**: those sites, plus the public APIs of
+   huggingface.co and www.credly.com for Hugging Face and Credly links. Each
+   request names Sourcer in its User-Agent. LinkedIn is never visited.
 
 This project never collects your data and never trains anything on it. It has
 no server, no telemetry and no account.
@@ -73,6 +81,7 @@ In local files until you delete them. Sourcer keeps nothing anywhere else.
 | `data/facts.json` (`SOURCER_FACTS`) | candidate facts and their status |
 | `data/evidence.txt` (`SOURCER_EVIDENCE`) | approved facts, in a marked section; your own lines stay as they are |
 | `profile.json` (`SOURCER_PROFILE`) | graduation, degree, work authorization |
+| `skills_vector.json` (`SOURCER_SKILLS`) | skill weights computed from approved facts, and yours |
 | `data/onboard-preview.txt` (`SOURCER_ONBOARD_PREVIEW`) | the last preview |
 | `data/onboard-log.jsonl` (`SOURCER_ONBOARD_LOG`) | the outbound call log |
 
@@ -84,4 +93,5 @@ All of them are gitignored and written readable by you only.
   removes that source and its facts, and rewrites the evidence file without
   them.
 - `sourcer forget --all` deletes every onboarding file above and the
-  onboarding section of the evidence file. Your `profile.json` and `.env` stay.
+  onboarding section of the evidence file, and empties computed skill
+  weights (a hand written skills file is kept). Your `profile.json` and `.env` stay.

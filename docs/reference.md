@@ -44,6 +44,7 @@ location check after parsing. A zero-dollar run does not produce AI scores.
 | `SOURCER_ONBOARD_BATCH_CHARS` | `12000` | excerpt characters per fact extraction call |
 | `SOURCER_ONBOARD_MAX_FILE_BYTES` | `200000` | a local file larger than this is never read |
 | `SOURCER_ONBOARD_GITHUB_MAX_REPOS` | `20` | most recently pushed public repos read per GitHub username |
+| `SOURCER_ONBOARD_LINK_MAX_PAGES` | `5` | pages read for one link (a site and its same host pages, Devpost projects) |
 | `GITHUB_TOKEN` | empty | optional; raises the GitHub API rate limit for onboarding, sent only to api.github.com |
 | `SOURCER_RUN_MINUTES` | no limit | no new model call after this many minutes in one run |
 | `SOURCER_BROWSER` | `0` | `1` reads careers pages that only render with scripts, in a sandboxed headless Chromium |
@@ -78,8 +79,14 @@ location check after parsing. A zero-dollar run does not produce AI scores.
 Input files:
 
 - `companies.json`: the target company list.
-- `skills_vector.json`: gitignored, personal. Copy the example and edit weights
-  (1 to 10, relevance to your target roles, not proficiency).
+- `skills_vector.json`: gitignored, personal. `sourcer init` and
+  `sourcer facts review` compute it from your approved facts (ADR 0014): each
+  entry has `skill`, `weight` (1 to 10), `category`, `synonyms`, a `reason`
+  and `source` (`computed` or `override`). The scorer reads only the first
+  four, and only when evidence scoring is off; with it on, fit is judged from
+  the approved facts themselves.
+  A file you wrote by hand (entries without `source`) is never replaced
+  unless you run `sourcer skills compute --force`, which keeps a `.bak` copy.
 - `sources.json`: gitignored, written by `sourcer init`. See [privacy](privacy.md).
 - `profile.json`: optional. Copy `profile.example.json` to enable level fit
   and the graduation availability rule. Without it, every posting fits.
@@ -97,6 +104,14 @@ sourcer facts scan [--dry-run]               # read sources again, extract new f
 sourcer facts review                         # approve, reject or edit pending facts
 sourcer facts list [--status pending]        # list facts
 sourcer facts log                            # every outbound call onboarding made
+sourcer init --add --link URL                # add a link; its kind comes from the URL
+sourcer init --add --publications pubs.txt   # a pasted publications list (TXT or MD)
+sourcer sync [--yes] [--dry-run]             # recheck every source, queue new or changed facts
+sourcer sync --quiet --yes                   # scheduled: no prompts, one line of output
+sourcer skills                               # skill weights with the reason for each
+sourcer skills set SQL 9                     # keep your own weight through every recompute
+sourcer skills reset SQL                     # back to the computed weight
+sourcer skills compute [--force]             # recompute now (--force replaces a hand written file)
 sourcer forget [--source github | --all]     # remove one source and its facts, or everything
 sourcer --cost-cap 0.05                      # run the pipeline (same as python -m sourcer.main)
 python -m sourcer.track list                 # ranked board with ids
@@ -116,6 +131,54 @@ python -m sourcer.alerts                     # print or open the alert issue
 python -m sourcer.mcp_server                 # MCP tools over stdio
 python -m sourcer.serve                      # HTTP scoring service on :8500
 ```
+
+### Links
+
+`--link URL` (or a link typed during `sourcer init`) is saved as the kind its
+URL names:
+
+| Kind | URL | What is read |
+|---|---|---|
+| `page` | any other https link | the page's main text and up to `SOURCER_ONBOARD_LINK_MAX_PAGES` pages in all on the same host |
+| `feed` | a path ending in `.xml`, `.rss`, `.atom`, `/feed` or `/rss` | titles, dates and summaries of the latest 25 posts |
+| `kaggle` | `kaggle.com/...` | the page title and description; Kaggle shows notebooks and datasets only with JavaScript, so add each notebook or dataset link |
+| `huggingface` | `huggingface.co/USER` | public models, spaces and datasets from the public API |
+| `devpost` | `devpost.com/USER` or a project | each project's tagline, story and "built with" list |
+| `scholar` | `scholar.google.*/citations?user=ID` | one profile page; Google often refuses automated reads, and then `--publications FILE` is the way |
+| `credly` | `credly.com/users/USER` | public badges (`badges.json`) |
+
+LinkedIn links are refused: LinkedIn is read only from the export zip
+(`--linkedin-export`). A GitHub profile link becomes a GitHub source. Every
+request checks robots.txt first (an unreadable robots.txt means nothing is
+read there), sends `User-Agent: Sourcer/VERSION (+https://github.com/marinasofia/sourcer)`,
+times out, reads at most 2,000,000 bytes per reply, never follows a redirect
+to another host, and is written to the call log.
+
+### Sync
+
+`sourcer sync` rechecks every source in `sources.json`. A resume or LinkedIn
+export whose file hash is unchanged is not read again; a GitHub repo with
+nothing pushed since the last read is skipped; folders and links are read and
+only excerpts that changed go on. What is left passes the same one line cost
+gate, preview, redaction and call log as `sourcer init`, and new facts wait
+for `sourcer facts review` (a fact whose quote is already known from that
+source is not queued twice). After review and after sync the skill weights
+are recomputed. The run ends with a line such as
+"3 new facts waiting. Run `sourcer facts review`.", and the morning digest
+prints the same reminder while facts wait.
+
+`--quiet` is for a schedule: no prompts and one line. Without `--yes` it
+sends nothing and queues nothing when model calls are needed, logs it, and
+says so; the next `sourcer sync` in a terminal asks. To run it weekly on your
+own computer, add a cron line (`crontab -e`), Monday at 8:00:
+
+```
+0 8 * * 1 cd /path/to/sourcer && .venv/bin/sourcer sync --quiet --yes >> data/sync.log 2>&1
+```
+
+Leave out `--yes` to be asked first. The private data workflow does not run
+sync: the runner has no resume, folders or Claude login, and facts need your
+review, so run it on your own computer.
 
 Deployment on Docker, GitHub Actions, AWS Lambda, Kubernetes, and Snowflake is
 covered in [`docs/deployment.md`](docs/deployment.md). Running, debugging, and

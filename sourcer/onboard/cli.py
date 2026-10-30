@@ -51,9 +51,10 @@ def show(path: Path) -> str:
 def privacy_details() -> str:
     """The full explanation behind the short note (docs/privacy.md says the same)."""
     return f"""What Sourcer reads
-  Only the sources you add, each when you add it: your resume file, the public
-  GitHub repositories of the username you give, the project folders you
-  include, the LinkedIn data export zip you downloaded, and links you add.
+  Only the sources you add, when you add them and when you run `sourcer sync`:
+  your resume file, the public GitHub repositories of the username you give,
+  the project folders you include, the LinkedIn data export zip you
+  downloaded, and links you add (robots.txt first, never another site).
   In a folder it reads READMEs and package manifests at each project root,
   counts files by type, and asks git for first and last commit dates. It never
   opens .env files, keys, certificates, credential or secret files, anything

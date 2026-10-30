@@ -13,7 +13,19 @@ All notable changes to this project are documented here. The format follows
   consent for each, and asks for graduation, degree, work authorization and
   cities in one step. It detects the backend (your Claude CLI login, else
   `ANTHROPIC_API_KEY`), writes `sources.json`, a starter `profile.json`, and
-  turns on evidence scoring in `.env`. Links are saved for a later version.
+  turns on evidence scoring in `.env`.
+- Computed skill weights (`sourcer/onboard/weights.py`, ADR 0014): depth,
+  recency, agreement across sources and demand in the local postings give
+  each skill a weight from 1 to 10 and a one line reason. `sourcer skills`
+  lists them; `sourcer skills set` and `reset` keep or drop your own weight
+  through every recompute. A hand written `skills_vector.json` is left alone.
+- `sourcer sync` rechecks every source and queues only new or changed facts,
+  through the same gate, preview, redaction and call log; `--quiet` for a
+  schedule never sends without `--yes`. The digest names facts waiting.
+- Link sources, each with its own collector: web pages, RSS and Atom feeds,
+  Kaggle, Hugging Face, Devpost, Google Scholar (or a pasted publications
+  list with `--publications`) and Credly. robots.txt first, a User-Agent
+  naming Sourcer, page and byte caps, no redirect to another host.
 - Candidate facts from those sources (`sourcer facts scan`), each with an
   exact quote that code checks against its source, behind a one line cost
   estimate and a yes, with `p` or `--dry-run` writing the exact excerpts to a

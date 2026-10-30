@@ -42,8 +42,12 @@ those files, so how the facts are gathered matters as much as the facts.
   source and quote.
 - The facts store keeps the excerpt hash of each item read, so a later scan
   reads only new or changed items. This is the seam for a sync command.
-- Skill weights are not computed yet; a later step derives them from approved
-  facts. Links are recorded but not read until link collectors exist; the
-  collector registry (`onboard.collect.COLLECTORS`) is where they plug in.
+- Skill weights are derived from approved facts (0014). Links are read by
+  one collector per kind (`onboard/links.py`, registered in
+  `onboard.collect.COLLECTORS`) through `onboard/web.py`: robots.txt first, a
+  User-Agent naming Sourcer, page and byte caps, no redirect to another host,
+  every fetch logged. Google Scholar refuses automated reads at times, so a
+  pasted publications file is the fallback. `sourcer sync` reruns the scan
+  over every source and reads only what changed.
 - Other CLI backends plug into `onboard.backends.BACKENDS` once they have a
   client that mimics `messages.create`.

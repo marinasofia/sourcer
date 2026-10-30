@@ -20,6 +20,7 @@ ROOT = Path(__file__).resolve().parent.parent
 
 FORBIDDEN_PATHS = {
     "skills_vector.json",
+    "skills_vector.json.bak",
     "profile.json",
     "sources.json",
     "docs/data.json",
