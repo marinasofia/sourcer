@@ -290,7 +290,7 @@ _CLEARANCE_RE = re.compile(
     re.I,
 )
 _CITIZEN_RE = re.compile(
-    r"\b(?:u\.?s\.?|united states) citizen(?:ship)?\b|\bus persons?\b"
+    r"\b(?:u\.?s\.?|united states) citizen(?:ship)?\b|\bu\.?\s?s\.?\s?persons?\b"
     r"|\bability to obtain (?:a )?(?:security )?clearance\b",
     re.I,
 )
@@ -322,6 +322,15 @@ _STUDENT_VISA_BARRED_RE = re.compile(
 # be authorized to work in the US" is fine. A posting that will not sponsor later (H-1B after
 # OPT) is not: "unable to sponsor now or in the future", "will not sponsor H-1B".
 _LATER_RE = re.compile(r"\bfuture\b|\bH-?1-?B\b", re.I)
+
+# "1 to 3 years at a top consulting, private equity, or banking firm": years at a
+# kind of employer, which a profile without that background cannot meet
+PRIOR_FIRM_RE = re.compile(
+    r"\b\d+\s*(?:\+|to|-)?\s*\d*\s*\+?\s*years?\b[^.\n]{0,40}?\bat an?\s+"
+    r"(?:top|leading|elite|tier[- ]?(?:1|one)|top[- ]tier|bulge[- ]bracket|premier)\b[^.\n]{0,40}?"
+    r"\b(?:consulting|private equity|banking|investment bank\w*|hedge fund|venture capital|strategy)\b",
+    re.I,
+)
 
 
 # "Open to candidates with OPT", "OPT/CPT candidates welcome": the employer
@@ -429,6 +438,8 @@ def eligibility_evidence(
     for line, optional in requirement_lines(description or ""):
         if optional:
             continue
+        if (profile or {}).get("top_firm_experience") is False and PRIOR_FIRM_RE.search(line):
+            return "prior_firm_required", _quote(line)
         status = _status_conflict(line, profile)
         if status:
             return status, _quote(line)
