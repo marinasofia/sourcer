@@ -489,9 +489,18 @@ def _posting_user_turn(posting: dict[str, Any]) -> str:
     )
 
 
+# keys of a skills_vector.json entry for people, not for the scorer: the
+# computed weight's reason and where the weight came from (onboard.weights)
+NOT_SCORED_KEYS = frozenset({"reason", "source"})
+
+
 def _skills_suffix(skills: dict[str, Any]) -> str:
+    entries = [
+        {k: v for k, v in e.items() if k not in NOT_SCORED_KEYS} if isinstance(e, dict) else e
+        for e in skills["skills"]
+    ]
     return "\n\nCandidate skills (weighted, with synonyms):\n" + json.dumps(
-        skills["skills"], separators=(",", ":")
+        entries, separators=(",", ":")
     )
 
 

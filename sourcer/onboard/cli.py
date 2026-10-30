@@ -20,7 +20,7 @@ from pathlib import Path
 from typing import Any
 
 from .. import config, llm, log
-from . import backends, folders, store
+from . import backends, folders, store, weights
 from .collect import collect_all
 from .extract import clean, estimate, printable, run, write_preview
 from .github import valid_username
@@ -370,8 +370,10 @@ def _gate(console: Console, items: list[SourceItem], line: str) -> bool:
 
 
 def top_skills(facts: list[dict[str, Any]], n: int = 6) -> list[str]:
-    counts = Counter(s for f in facts for s in f.get("skills") or [])
-    return [s for s, _ in counts.most_common(n)]
+    """The top skills of the facts already approved plus the ones just found,
+    ranked by the weight formula (weights.compute); shown, not written."""
+    approved = [f for f in store.load_facts()["facts"] if f.get("status") == "approved"]
+    return weights.ranking([*approved, *({**f, "status": "approved"} for f in facts)], n)
 
 
 @dataclass
@@ -494,6 +496,17 @@ def finish_review(console: Console, facts: dict[str, Any]) -> None:
     console.say(
         f"{plural(count, 'approved fact')} in {show(config.EVIDENCE_PATH)}; scoring uses them."
     )
+    recompute_weights(console, facts["facts"])
+
+
+def recompute_weights(console: Console, facts: list[dict[str, Any]]) -> None:
+    """Rewrite skills_vector.json from the approved facts, keeping overrides."""
+    done = weights.recompute(facts)
+    if not done.written:
+        console.say(f"Skill weights: {done.note}.")
+        return
+    top = ", ".join(f"{e['skill']} {e['weight']}" for e in done.skills[:5]) or "none yet"
+    console.say(f"Skill weights updated: {top}. `sourcer skills` shows why.")
 
 
 def _describe(fact: dict[str, Any], n: int, total: int) -> str:
@@ -570,6 +583,60 @@ def print_log(console: Console) -> int:
     return 0
 
 
+# ---------------------------------------------------------------- skills
+
+
+def _change_weight(console: Console, action: str, name: str, weight: int | None) -> int:
+    facts = store.load_facts()["facts"]
+    try:
+        if action == "set":
+            entry = weights.set_override(facts, name, int(weight or 0))
+            console.say(printable(
+                f"{entry['skill']} is now {entry['weight']}, kept on every recompute. "
+                f"`sourcer skills reset {entry['skill']}` undoes it."
+            ))  # fmt: skip
+            return 0
+        if weights.reset_override(facts, name):
+            console.say(printable(f"{name} is back to its computed weight."))
+            return 0
+    except ValueError as exc:
+        console.say(f"{exc}.")
+        return 1
+    console.say(printable(f"{name} has no weight set by you."))
+    return 1
+
+
+def skills_cmd(
+    console: Console, action: str | None, name: str = "", weight: int | None = None,
+    force: bool = False,
+) -> int:  # fmt: skip
+    """List the weights with reasons, set or reset an override, or recompute."""
+    if action in ("set", "reset"):
+        return _change_weight(console, action, name, weight)
+    if action == "compute":
+        done = weights.recompute(store.load_facts()["facts"], force=force)
+        if not done.written:
+            console.say(f"{done.note}.")
+            return 1
+    data = weights.load_vector()
+    if weights.hand_written(data):
+        console.say(f"Skill weights: {weights.HAND_WRITTEN}.")
+        return 0
+    entries = data["skills"]
+    if not entries:
+        console.say("No skill weights yet. Approve facts with `sourcer facts review`.")
+        return 0
+    width = min(28, max(len(str(e["skill"])) for e in entries))
+    for e in entries:
+        mine = " (yours)" if e.get("source") == weights.OVERRIDE else ""
+        line = f"{e['weight']:>3}  {e['skill']!s:<{width}}  {e.get('reason', '')}{mine}"
+        console.say(printable(line))
+    console.say(
+        "Change one with `sourcer skills set NAME WEIGHT`; undo with `sourcer skills reset NAME`."
+    )
+    return 0
+
+
 # ---------------------------------------------------------------- forget
 
 
@@ -580,14 +647,16 @@ def forget(console: Console, source: str | None, everything: bool) -> int:  # no
         paths = [config.FACTS_PATH, config.SOURCES_PATH, config.ONBOARD_PREVIEW_PATH,
                  config.ONBOARD_LOG_PATH]  # fmt: skip
         if not console.confirm(
-            "Delete every onboarding file (facts, sources, preview, call log) and the onboarding "
-            f"part of {show(config.EVIDENCE_PATH)}? [y/N] "
+            "Delete every onboarding file (facts, sources, preview, call log, computed skill "
+            f"weights) and the onboarding part of {show(config.EVIDENCE_PATH)}? [y/N] "
         ):
             console.say("Nothing deleted.")
             return 0
         for path in paths:
             path.unlink(missing_ok=True)
         store.write_evidence([])
+        if config.SKILLS_PATH.exists() and not weights.hand_written(weights.load_vector()):
+            store.write_private(config.SKILLS_PATH, json.dumps(STARTER_SKILLS, indent=2) + "\n")
         console.say("Deleted. Your profile.json and .env were kept.")
         return 0
     if not source:
@@ -621,6 +690,7 @@ def forget(console: Console, source: str | None, everything: bool) -> int:  # no
     store.save_facts(facts)
     store.write_evidence(facts["facts"])
     console.say(f"Removed {name} and {n} facts.")
+    recompute_weights(console, facts["facts"])
     return 0
 
 
@@ -822,6 +892,18 @@ def _parser() -> argparse.ArgumentParser:
     )
     forget_p.add_argument("--all", action="store_true", dest="everything")
     forget_p.add_argument("--yes", action="store_true")
+
+    skills_p = sub.add_parser("skills", help="skill weights with reasons, and your overrides")
+    skills_sub = skills_p.add_subparsers(dest="action")
+    set_p = skills_sub.add_parser("set", help="keep your own weight for a skill")
+    set_p.add_argument("name")
+    set_p.add_argument("weight", type=int, choices=range(1, 11), metavar="WEIGHT")
+    reset_p = skills_sub.add_parser("reset", help="go back to the computed weight")
+    reset_p.add_argument("name")
+    compute_p = skills_sub.add_parser("compute", help="recompute the weights now")
+    compute_p.add_argument(
+        "--force", action="store_true", help="replace a hand written skills_vector.json"
+    )
     return ap
 
 
@@ -830,7 +912,7 @@ def default_backend() -> str:
     return config.LLM_BACKEND if os.environ.get("SOURCER_LLM") else "auto"
 
 
-def main(argv: list[str] | None = None, console: Console | None = None) -> int:
+def main(argv: list[str] | None = None, console: Console | None = None) -> int:  # noqa: PLR0911
     args = _parser().parse_args(argv)
     log.configure()
     console = console or Console(yes=getattr(args, "yes", False))
@@ -840,6 +922,9 @@ def main(argv: list[str] | None = None, console: Console | None = None) -> int:
         return init(console, args)
     if args.command == "forget":
         return forget(console, args.source, args.everything)
+    if args.command == "skills":
+        return skills_cmd(console, args.action, getattr(args, "name", ""),
+                          getattr(args, "weight", None), getattr(args, "force", False))  # fmt: skip
     if args.action == "scan":
         choice = args.backend if args.backend != "auto" else default_backend()
         return scan(console, choice, dry_run=args.dry_run)

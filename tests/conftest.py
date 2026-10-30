@@ -215,4 +215,5 @@ def onboard_paths(paths: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     monkeypatch.setattr(config, "EVIDENCE_PATH", paths / "data" / "evidence.txt")
     monkeypatch.delenv("GITHUB_TOKEN", raising=False)
     monkeypatch.delenv("SOURCER_LLM", raising=False)
+    monkeypatch.setattr(config, "LLM_BACKEND", config.LLM_BACKEND)  # a scan sets it
     return paths
