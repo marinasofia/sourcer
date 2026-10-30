@@ -6,6 +6,25 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- `sourcer init`: a short setup that reads your resume, public GitHub
+  repositories, project folders and LinkedIn data export one at a time, with
+  consent for each, and asks for graduation, degree, work authorization and
+  cities in one step. It detects the backend (your Claude CLI login, else
+  `ANTHROPIC_API_KEY`), writes `sources.json`, a starter `profile.json`, and
+  turns on evidence scoring in `.env`. Links are saved for a later version.
+- Candidate facts from those sources (`sourcer facts scan`), each with an
+  exact quote that code checks against its source, behind a one line cost
+  estimate and a yes, with `p` or `--dry-run` writing the exact excerpts to a
+  preview file instead. `sourcer facts review` approves, rejects or edits
+  them; approved facts go into a marked section of the evidence file and
+  hand written lines are kept. `sourcer facts list` and `sourcer facts log`
+  (every outbound call, never content).
+- `sourcer forget --source` and `sourcer forget --all`.
+- The `onboard` extra (pypdf, python-docx) for PDF and DOCX resumes.
+- docs/privacy.md and ADR 0013.
+
 ### Changed
 
 - Two workers read a posting. A small extraction model

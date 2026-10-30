@@ -34,6 +34,17 @@ location check after parsing. A zero-dollar run does not produce AI scores.
 | `SOURCER_EXTRACT_MODEL` | `claude-haiku-5-5` | model id for the extraction worker that copies a posting's facts with its own words before the rules run |
 | `SOURCER_SCORE_MODEL` | `SOURCER_MODEL` | model id for the fit checks and title triage when it should differ from `SOURCER_MODEL` |
 | `SOURCER_LLM` | `api` | `claude-code` runs calls through the Claude Code CLI instead of the API |
+| `SOURCER_EVIDENCE` | `data/evidence.txt` | the candidate's approved facts; `sourcer facts review` writes its marked section |
+| `SOURCER_EVIDENCE_SCORING` | unset | `1` scores fit against the evidence file instead of the skills list; `sourcer init` sets it |
+| `SOURCER_SOURCES` | `sources.json` next to `profile.json` | onboarding sources (gitignored) |
+| `SOURCER_FACTS` | `data/facts.json` | candidate facts and their status |
+| `SOURCER_FACTS_MODEL` | `SOURCER_EXTRACT_MODEL` | model id that turns source excerpts into candidate facts |
+| `SOURCER_ONBOARD_PREVIEW` | `data/onboard-preview.txt` | where a preview writes the exact excerpts it would send |
+| `SOURCER_ONBOARD_LOG` | `data/onboard-log.jsonl` | local log of onboarding's outbound calls, never content |
+| `SOURCER_ONBOARD_BATCH_CHARS` | `12000` | excerpt characters per fact extraction call |
+| `SOURCER_ONBOARD_MAX_FILE_BYTES` | `200000` | a local file larger than this is never read |
+| `SOURCER_ONBOARD_GITHUB_MAX_REPOS` | `20` | most recently pushed public repos read per GitHub username |
+| `GITHUB_TOKEN` | empty | optional; raises the GitHub API rate limit for onboarding, sent only to api.github.com |
 | `SOURCER_RUN_MINUTES` | no limit | no new model call after this many minutes in one run |
 | `SOURCER_BROWSER` | `0` | `1` reads careers pages that only render with scripts, in a sandboxed headless Chromium |
 | `SOURCER_COST_CAP` | `2.50` | estimated pipeline budget in USD; not a provider billing limit |
@@ -69,6 +80,7 @@ Input files:
 - `companies.json`: the target company list.
 - `skills_vector.json`: gitignored, personal. Copy the example and edit weights
   (1 to 10, relevance to your target roles, not proficiency).
+- `sources.json`: gitignored, written by `sourcer init`. See [privacy](privacy.md).
 - `profile.json`: optional. Copy `profile.example.json` to enable level fit
   and the graduation availability rule. Without it, every posting fits.
 
@@ -78,6 +90,14 @@ Activate the quickstart environment with `source .venv/bin/activate` before
 running these commands. Live scoring commands can make paid model requests.
 
 ```bash
+sourcer init                                 # set up: privacy note, sources one at a time, profile
+sourcer init --add                           # add more sources later
+sourcer init --yes --resume cv.pdf --github USER --folder ~/code   # no questions
+sourcer facts scan [--dry-run]               # read sources again, extract new facts
+sourcer facts review                         # approve, reject or edit pending facts
+sourcer facts list [--status pending]        # list facts
+sourcer facts log                            # every outbound call onboarding made
+sourcer forget [--source github | --all]     # remove one source and its facts, or everything
 sourcer --cost-cap 0.05                      # run the pipeline (same as python -m sourcer.main)
 python -m sourcer.track list                 # ranked board with ids
 python -m sourcer.track set 97 applied "sent 09-03"
