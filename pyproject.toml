@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "sourcer-jobs"
 version = "0.2.0"
-description = "Job matching agent: a LangGraph pipeline that filters ATS board postings and scores them against a weighted skills vector with the Claude API."
+description = "Finds early career roles worth applying to: reads company job boards, drops what cannot fit with rules, and has Claude score the rest against the candidate's own evidence."
 readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE"]
