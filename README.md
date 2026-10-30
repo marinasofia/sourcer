@@ -46,7 +46,8 @@ flowchart LR
     D[Discover companies<br/>YC, Built In, HN, VC boards] --> P[Find each company's<br/>job board]
     P --> C[Collect postings<br/>9 ATS APIs and a<br/>sandboxed browser]
     C --> R[Rules<br/>location, level, dates,<br/>work authorization]
-    R --> M[Claude fit checks<br/>against the candidate's<br/>evidence]
+    R --> X[Extract facts<br/>with the posting's<br/>own words]
+    X --> M[Claude fit checks<br/>against the candidate's<br/>evidence]
     M --> S[Score, rank,<br/>explain]
     S --> O[Morning list,<br/>tracker, feedback]
 ```
@@ -61,10 +62,14 @@ flowchart LR
 3. **Rules.** Location, seniority, years required, start dates, graduation
    windows and explicit work authorization limits. Unclear dates are flagged,
    never guessed.
-4. **Judge.** Claude reads the posting and the candidate's approved facts from
-   past jobs and projects. It answers fixed checks. Is this the kind of work the
-   candidate has done and is each real requirement covered, with a quote from
-   the candidate's evidence? Code turns those answers into the score.
+4. **Extract, then judge.** Two model calls per posting. A small model first
+   copies the posting's facts (start date, place, level, years required), each
+   with the posting's own words; code keeps only the facts those words support
+   and runs the rules on them. Only a posting that passes goes to the scoring
+   model, which reads the candidate's approved facts from past jobs and
+   projects and answers fixed checks. Is this the kind of work the candidate
+   has done and is each real requirement covered, with a quote from the
+   candidate's evidence? Code turns those answers into the score.
 5. **Rank and learn.** Freshness, deadlines and the score order the list.
    Thumbs up or down move a role by at most five points and never override a
    rule.
