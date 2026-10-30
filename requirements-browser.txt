@@ -686,9 +686,9 @@ langgraph-prebuilt==1.1.0 \
     # via
     #   -c requirements.txt
     #   langgraph
-langgraph-sdk==0.4.4 \
-    --hash=sha256:39afe416c91742925e6f8a93715f566d499b36e1b636b804a4ffe3190e4f4e64 \
-    --hash=sha256:4e651ffa09de695681579396375377bdde23bedbc8e35b070e615cbd5af7da8b
+langgraph-sdk==0.4.10 \
+    --hash=sha256:306ede340814e79332812e3b5a8bda2587a09657c95e14e5c7af3370e06c22fe \
+    --hash=sha256:d8d7afd326b4df42ddc0878b7fbf53f03c3237c664c236bf5bac4ab16fc38ed9
     # via
     #   -c requirements.txt
     #   langgraph
