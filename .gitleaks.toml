@@ -1,0 +1,11 @@
+# gitleaks config: the default rules, plus an allowlist for two commits on the
+# onboarding branch whose test fixtures held made up keys (fixed in later commits).
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Made up redactor fixtures in tests/test_onboard_collectors.py, rewritten so no line matches"
+commits = [
+  "7174b4cc277ae1d5e6dddd3f0bd6b2d249bae7ff",
+  "e27bcd395d343f1dfb0573a7274a0b9356ec99d1",
+]
