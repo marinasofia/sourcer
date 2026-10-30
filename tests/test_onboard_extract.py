@@ -143,3 +143,13 @@ def test_backend_detection(monkeypatch: pytest.MonkeyPatch) -> None:
     assert "unknown backend" in backends.detect("codex")[1]
     monkeypatch.setattr(config, "LLM_BACKEND", "claude-code")
     assert backends.current() is CLI
+
+
+def test_a_fact_cannot_carry_the_evidence_markers() -> None:
+    marker = {**GOOD, "group": "x # <<< sourcer onboarding"}
+    facts, dropped = extract.verify_facts({"facts": [marker]}, [item()])
+    assert facts == [] and dropped == 1
+    hashed = {**GOOD, "status": "approved", "group": "## Heading", "text": "# Built it."}
+    assert store.render_approved([hashed]).startswith("Heading (job")
+    assert "\n- Built it." in store.render_approved([hashed])
+    assert extract.printable("a\x1b[2Jb") == "a[2Jb"

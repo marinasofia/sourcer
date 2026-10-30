@@ -121,21 +121,26 @@ class IgnoreRules:
 _SECRET_PATTERNS = (
     re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----.*?(-----END [A-Z ]*PRIVATE KEY-----|\Z)", re.S),
     re.compile(r"\bsk-[A-Za-z0-9_-]{16,}"),
+    re.compile(r"\b[rs]k_(?:live|test)_[A-Za-z0-9]{10,}"),
+    re.compile(r"\b(?:hf_[A-Za-z0-9]{20,}|glpat-[A-Za-z0-9_-]{20,}|npm_[A-Za-z0-9]{30,})"),
+    re.compile(r"\bpypi-[A-Za-z0-9_-]{16,}"),
+    re.compile(r"https://(?:hooks\.slack\.com/services|discord(?:app)?\.com/api/webhooks)/\S+"),
     re.compile(r"\b(?:AKIA|ASIA)[0-9A-Z]{16}\b"),
     re.compile(r"\b(?:gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,})\b"),
     re.compile(r"\bxox[abprs]-[A-Za-z0-9-]{10,}"),
     re.compile(r"\bAIza[0-9A-Za-z_-]{30,}"),
     re.compile(r"\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}"),
     re.compile(r"(?i)\bbearer\s+[A-Za-z0-9._~+/=-]{16,}"),
-    re.compile(r"[a-z][a-z0-9+.-]*://[^\s:/@]+:[^\s@/]+@", re.I),  # credentials in a URL
+    re.compile(r"[a-z][a-z0-9+.-]*://[^\s/]*:[^\s/]*@", re.I),  # credentials in a URL
 )
 _ASSIGNED_SECRET = re.compile(
-    r"(?i)\b([A-Za-z0-9_]*(?:api[_-]?key|secret|token|passw(?:or)?d|pwd|access[_-]?key)[A-Za-z0-9_]*)"
-    r"(\s*[:=]\s*)([\"']?)[^\s\"',;]{6,}\3"
+    r"(?i)\b([A-Za-z0-9_]*(?:api[_-]?key|_key|secret|token|passw(?:or)?d|pwd|access[_-]?key)[A-Za-z0-9_]*)"
+    r"([\"']?\s*[:=]\s*)([\"']?)[^\s\"',;]{6,}\3"
 )
 EMAIL_RE = re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b")
 PHONE_RE = re.compile(
-    r"(?<![\w.-])(?:\+\d{1,3}[\s.-]?)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]\d{4}(?![\w.-])"
+    r"(?<![\w.-])(?:\+\d{1,3}[\s.-]?)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}(?![\w.-])"
+    r"|(?<![\w.-])\+\d{1,3}(?:[\s.-]?\d{2,4}){2,4}(?![\w.-])"
 )
 REDACTED = "[redacted]"
 

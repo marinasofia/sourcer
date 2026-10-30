@@ -32,6 +32,16 @@ README_CHARS = 2000
 MANIFEST_CHARS = 1200
 MAX_WALK_FILES = 20000
 MAX_PROJECTS = 50
+# A scanned repo's own .git/config is untrusted: it could name a program for
+# git to run (a signature checker, a pager, a filesystem monitor). These
+# settings on the command line win over it, so plain `git log` runs nothing.
+SAFE_GIT = tuple(
+    arg
+    for setting in ("core.fsmonitor=false", "core.pager=cat", "log.showSignature=false",
+                    "gpg.program=false", "gpg.ssh.program=false", "gpg.x509.program=false",
+                    "core.hooksPath=/dev/null", "diff.external=")
+    for arg in ("-c", setting)
+)  # fmt: skip
 
 
 @dataclass
@@ -131,7 +141,7 @@ def git_dates(root: Path) -> tuple[str, str, int] | None:
         return None
     try:
         proc = subprocess.run(  # noqa: S603  # nosec B603
-            [git, "--no-pager", "-c", "core.fsmonitor=false", "-C", str(root), "log",
+            [git, "--no-pager", *SAFE_GIT, "-C", str(root), "log", "--no-show-signature",
              "--format=%cs", "--no-merges"],
             capture_output=True, text=True, timeout=20, check=False,
             env={"PATH": os.environ.get("PATH", ""), "GIT_CONFIG_NOSYSTEM": "1",

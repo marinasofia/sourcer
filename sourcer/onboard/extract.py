@@ -27,6 +27,8 @@ MAX_TOKENS = 4000
 # a reply is about this many tokens per call, for the estimate only
 EST_OUT_TOKENS = 1200
 MAX_FACT_CHARS = 400
+# words of the evidence file markers; a fact carrying them could split the file
+MARKER = "sourcer onboarding"
 
 
 def batches(items: Iterable[SourceItem], limit: int | None = None) -> list[list[SourceItem]]:
@@ -89,7 +91,7 @@ def write_preview(items: list[SourceItem], path: Path | None = None) -> Path:
         llm.FACTS_SYSTEM,
     ]
     for n, group in enumerate(groups, 1):
-        where = ", ".join(sorted({f"{i.source_type} {i.location}" for i in group}))
+        where = ", ".join(sorted({clean(f"{i.source_type} {i.location}", 200) for i in group}))
         out += ["", f"=== Call {n} of {len(groups)}: {where} ===", user_turn(group)]
     write_private(path, "\n".join(out) + "\n")
     return path
@@ -100,10 +102,18 @@ def _named_in(skill: str, text: str) -> bool:
     return bool(s) and re.search(r"(?<!\w)" + re.escape(s) + r"(?!\w)", text.lower()) is not None
 
 
+CONTROL_RE = re.compile(r"[\x00-\x1f\x7f-\x9f]")
+
+
+def printable(text: Any) -> str:
+    """Text safe to print: control characters (terminal escapes) removed."""
+    return CONTROL_RE.sub("", str(text or ""))
+
+
 def clean(text: Any, limit: int) -> str:
     """One line of plain text: no control characters (a terminal escape in a
     source cannot reach the review screen), single spaces, capped."""
-    return " ".join(re.sub(r"[\x00-\x1f\x7f-\x9f]", " ", str(text or "")).split())[:limit]
+    return " ".join(CONTROL_RE.sub(" ", str(text or "")).split())[:limit]
 
 
 def _skills(named: list[Any], text: str) -> list[str]:
@@ -135,6 +145,7 @@ def verify_facts(data: dict[str, Any], batch: list[SourceItem]) -> tuple[list[di
             or not llm.quoted_in(quote, item.text)
             or contact_detail(text)
             or contact_detail(quote)
+            or MARKER in f"{text} {raw.get('group')}".lower()
         ):
             dropped += 1
             continue

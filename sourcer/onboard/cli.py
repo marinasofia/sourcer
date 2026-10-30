@@ -22,7 +22,7 @@ from typing import Any
 from .. import config, llm, log
 from . import backends, folders, store
 from .collect import collect_all
-from .extract import clean, estimate, run, write_preview
+from .extract import clean, estimate, printable, run, write_preview
 from .github import valid_username
 from .items import SourceItem, source_spec
 from .resume import SUFFIXES as RESUME_SUFFIXES
@@ -344,10 +344,10 @@ def _summary(sources: list[dict[str, Any]], collected: dict[str, Any], console: 
             continue
         names = ", ".join(got.read[:6]) + (", ..." if len(got.read) > 6 else "")
         what = plural(len(got.read), "repo" if source["type"] == "github" else "file")
-        console.say(f"  {source['type']} {source.get('label') or source['value']}: "
-                    f"{what}{' (' + names + ')' if names else ''}")  # fmt: skip
+        console.say(printable(f"  {source['type']} {source.get('label') or source['value']}: "
+                          f"{what}{' (' + names + ')' if names else ''}"))  # fmt: skip
         for note in got.notes:
-            console.say(f"    {note}")
+            console.say(f"    {printable(note)}")
 
 
 def _gate(console: Console, items: list[SourceItem], line: str) -> bool:
@@ -502,7 +502,8 @@ def _describe(fact: dict[str, Any], n: int, total: int) -> str:
     return (
         f"\n[{n}/{total}] {head}\n  {fact['text']}\n"
         + (f"  skills: {skills}\n" if skills else "")
-        + f'  quote: "{fact["quote"]}"\n  from: {fact["source_type"]} {fact["source_ref"]}'
+        + f'  quote: "{fact["quote"]}"\n'
+        + f"  from: {printable(fact['source_type'] + ' ' + str(fact['source_ref']))}"
     )
 
 
@@ -549,8 +550,9 @@ def list_facts(console: Console, status: str | None) -> int:
         console.say("No facts yet. Run `sourcer init` or `sourcer facts scan`.")
         return 0
     for fact in facts:
+        where = printable(f"{fact['source_type']} {fact['source_ref']}")
         console.say(f"[{fact['status']}] {fact.get('kind')}, {fact.get('group') or 'other'}: "
-                    f"{fact['text']}  ({fact['source_type']} {fact['source_ref']})")  # fmt: skip
+                    f"{fact['text']}  ({where})")  # fmt: skip
     counts = Counter(f["status"] for f in facts)
     console.say(", ".join(f"{counts[s]} {s}" for s in store.STATUSES if counts[s]))
     return 0
@@ -591,7 +593,8 @@ def forget(console: Console, source: str | None, everything: bool) -> int:  # no
     if not source:
         for s in sources["sources"]:
             n = sum(1 for f in facts["facts"] if f["source_id"] == s["id"])
-            console.say(f"  {s['id']}  {s['type']} {s.get('label') or s['value']}  ({n} facts)")
+            name = printable(s.get("label") or s["value"])
+            console.say(f"  {s['id']}  {s['type']} {name}  ({n} facts)")
         console.say(
             "Remove one with `sourcer forget --source ID`, or all with `sourcer forget --all`."
         )

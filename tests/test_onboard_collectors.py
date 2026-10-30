@@ -209,12 +209,12 @@ def test_github_rate_limit_keeps_what_was_read(
         {
             "/users/octo-example/repos": FakeResponse(200, REPOS),
             "/repos/octo-example/churn-model/languages": FakeResponse(200, {}),
-            "/repos/octo-example/churn-model/readme": FakeResponse(404, {}),
+            "/repos/octo-example/churn-model/readme": FakeResponse(301, {}, {"Location": "x"}),
             "/repos/octo-example/notes/languages": limited,
         },
     )
     got = github.collect(spec("github", "octo-example"))
-    assert len(got.items) == 1
+    assert len(got.items) == 1 and "README" not in got.items[0].text  # a redirect is no README
     assert "rate limit" in got.notes[0] and "GITHUB_TOKEN" in got.notes[0]
 
 
@@ -452,3 +452,45 @@ def test_registry_and_links(tmp_path: Path) -> None:
     with pytest.raises(ValueError):
         source_spec("fax", "1")
     assert spec("github", "a")["id"] == spec("github", "a")["id"] != spec("github", "b")["id"]
+
+
+def test_git_ignores_programs_named_by_the_repo(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A scanned repo's .git/config cannot make git run a program: the command
+    line turns off every setting that names one."""
+    (tmp_path / ".git").mkdir()
+    seen: list[list[str]] = []
+
+    def run(argv: list[str], **kw: Any) -> Any:
+        seen.append(argv)
+        return MagicMock(returncode=0, stdout="2025-01-02\n2024-03-04\n")
+
+    monkeypatch.setattr(folders.subprocess, "run", run)
+    assert folders.git_dates(tmp_path) == ("2024-03-04", "2025-01-02", 2)
+    argv = seen[0]
+    assert "--no-show-signature" in argv and "--no-pager" in argv
+    settings = ("log.showSignature=false", "gpg.program=false", "gpg.ssh.program=false",
+                "gpg.x509.program=false", "core.fsmonitor=false", "core.pager=cat")  # fmt: skip
+    for setting in settings:
+        assert argv[argv.index(setting) - 1] == "-c"
+    assert argv.index("log") > argv.index("gpg.program=false")
+
+
+def test_redact_more_token_formats() -> None:
+    samples = {
+        '"api_key": "abcdef123456"': "abcdef123456",
+        '{"token":"tok_9a8b7c6d5e"}': "tok_9a8b7c6d5e",
+        "OPENAI_KEY=abcdefgh1234": "abcdefgh1234",
+        "sk_live_" + "a1b2c3d4e5f6g7": "a1b2c3d4e5f6g7",
+        "hf_" + "A" * 30: "A" * 30,
+        "glpat-" + "x" * 20: "x" * 20,
+        "npm_" + "n" * 36: "n" * 36,
+        "pypi-" + "p" * 60: "p" * 60,
+        "https://hooks.slack.com/services/T000/B000/" + "z" * 24: "z" * 24,
+        "postgres://user:pa@ss@db.example.org/x": "pa@ss",
+        "call +44 20 7946 0958 now": "7946 0958",
+        "or 5551234567 later": "5551234567",
+    }
+    for text, secret in samples.items():
+        assert secret not in privacy.redact(text), text

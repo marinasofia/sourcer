@@ -31,7 +31,7 @@ def now() -> str:
 
 def write_private(path: Path, text: str) -> None:
     """Write ``text`` to ``path`` readable by its owner only."""
-    path.parent.mkdir(parents=True, exist_ok=True)
+    path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
     fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
     with os.fdopen(fd, "w", encoding="utf-8") as fh:
         fh.write(text)
@@ -113,6 +113,7 @@ def audit(destination: str, action: str, source_ids: Iterable[str], chars: int) 
     fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600)
     with os.fdopen(fd, "a", encoding="utf-8") as fh:
         fh.write(json.dumps(entry) + "\n")
+    path.chmod(0o600)
 
 
 def read_audit() -> list[dict[str, Any]]:
@@ -134,7 +135,7 @@ def read_audit() -> list[dict[str, Any]]:
 
 def _fact_line(fact: dict[str, Any]) -> str:
     skills = ", ".join(fact.get("skills") or [])
-    return f"- {fact['text']}" + (f" Skills: {skills}." if skills else "")
+    return f"- {str(fact['text']).lstrip('# ')}" + (f" Skills: {skills}." if skills else "")
 
 
 def render_approved(facts: list[dict[str, Any]]) -> str:
@@ -148,7 +149,7 @@ def render_approved(facts: list[dict[str, Any]]) -> str:
         groups.setdefault(key, []).append(fact)
     blocks = []
     for (group, kind, dates), members in groups.items():
-        head = f"{group} ({kind}{', ' + dates if dates else ''})"
+        head = f"{group.lstrip('# ')} ({kind}{', ' + dates if dates else ''})"
         blocks.append("\n".join([head, *(_fact_line(f) for f in members)]))
     return "\n\n".join(blocks)
 

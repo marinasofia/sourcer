@@ -67,8 +67,8 @@ def _get(path: str, source_id: str, accept: str | None = None) -> requests.Respo
         resp.headers.get("X-RateLimit-Remaining") == "0" or resp.status_code == 429
     ):
         raise RateLimited(resp.headers.get("X-RateLimit-Reset"))
-    if resp.status_code == 404:
-        return None
+    if resp.status_code == 404 or 300 <= resp.status_code < 400:
+        return None  # missing, or moved (redirects are not followed)
     resp.raise_for_status()
     return resp
 
