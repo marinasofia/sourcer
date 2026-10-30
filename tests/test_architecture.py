@@ -102,6 +102,7 @@ LAYERS: dict[str, int] = {
     "score_listings": 3,
     "batch": 3,
     "evaluate": 3,
+    "onboard.cli": 3,
 }
 
 

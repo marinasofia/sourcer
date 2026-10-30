@@ -112,6 +112,7 @@ ignore = [
 "sourcer/alerts.py" = ["T20"]
 "sourcer/snowdb.py" = ["T20"]
 "sourcer/trust.py" = ["T20"]
+"sourcer/onboard/cli.py" = ["T20"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["sourcer"]

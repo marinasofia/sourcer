@@ -104,6 +104,10 @@ def main(argv: list[str] | None = None) -> int:
         from .bot.telegram import main as telegram_main  # noqa: PLC0415
 
         return telegram_main(args_in[1:])
+    if args_in[:1] in (["init"], ["facts"], ["forget"]):
+        from .onboard.cli import main as onboard_main  # noqa: PLC0415
+
+        return onboard_main(args_in)
     if args_in[:1] == ["collect"]:
         args_in = args_in[1:]
     ap = argparse.ArgumentParser(prog="sourcer", description=__doc__)
