@@ -49,7 +49,7 @@ jobs:
       - name: lockfiles match pyproject
         run: |
           uv pip compile pyproject.toml --python-version 3.12 --generate-hashes --constraint requirements.txt -o /tmp/req.txt -q
-          uv pip compile pyproject.toml --python-version 3.12 --extra dev --extra aws --extra snowflake --generate-hashes --constraint requirements-dev.txt -o /tmp/req-dev.txt -q
+          uv pip compile pyproject.toml --python-version 3.12 --extra dev --extra aws --extra snowflake --extra onboard --generate-hashes --constraint requirements-dev.txt -o /tmp/req-dev.txt -q
           diff <(grep -vE '^[[:space:]]*#' requirements.txt) <(grep -vE '^[[:space:]]*#' /tmp/req.txt)
           diff <(grep -vE '^[[:space:]]*#' requirements-dev.txt) <(grep -vE '^[[:space:]]*#' /tmp/req-dev.txt)
           uv pip compile pyproject.toml --python-version 3.12 --extra browser --generate-hashes --constraint requirements.txt -o /tmp/req-browser.txt -q

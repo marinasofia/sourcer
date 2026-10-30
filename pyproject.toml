@@ -33,6 +33,8 @@ dependencies = [
 [project.optional-dependencies]
 aws = ["boto3>=1.34,<2"]
 browser = ["playwright>=1.50,<2"]
+# sourcer init and sourcer facts: read PDF and DOCX resumes
+onboard = ["pypdf>=6.0,<7", "python-docx>=1.1,<2"]
 snowflake = [
   "snowflake-connector-python>=4.0,<5",
   "cryptography>=50",   # PYSEC-2026-35/36/2141/3552/3553/3554, GHSA-537c-gmf6-5ccf
