@@ -48,11 +48,13 @@ LAYERS: dict[str, int] = {
     "onboard.items": 1,
     "onboard.privacy": 1,
     "onboard.store": 1,
+    "onboard.backends": 1,
     "onboard.resume": 1,
     "onboard.github": 1,
     "onboard.folders": 1,
     "onboard.linkedin": 1,
     "onboard.collect": 1,
+    "onboard.extract": 1,
     # 2: the pipeline
     "pipeline": 2,
     "pipeline.state": 2,
