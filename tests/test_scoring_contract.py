@@ -168,6 +168,17 @@ def test_usage_is_priced_by_the_model_that_ran():
     assert llm.model_prices("claude-opus-5-5") == (4.00, 20.00)
 
 
+@pytest.mark.xfail(
+    reason="config.EXTRACT_MODEL (claude-haiku-5-5) has no MODEL_PRICES entry, so the cost "
+    "cap prices extraction calls at the fallback SOURCER_PRICE_IN/OUT rates; add its list "
+    "price to llm.MODEL_PRICES",
+    strict=True,
+)
+def test_every_default_model_has_a_price():
+    for model in (config.MODEL, config.EXTRACT_MODEL):
+        assert any(model.startswith(name) for name in llm.MODEL_PRICES), model
+
+
 def test_run_minutes_stops_new_calls(monkeypatch):
     client = make_client([json.dumps(GOOD_PARSE_SCORE)])
     monkeypatch.setattr(config, "RUN_MINUTES", 0.0)
