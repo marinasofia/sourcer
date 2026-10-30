@@ -12,6 +12,7 @@ from dotenv import load_dotenv
 
 from . import __version__, config, db, llm, log, progress, rescreen, score_listings
 from .digest import render_digest
+from .onboard import store as onboard_store
 from .pipeline.graph import build_graph
 from .pipeline.state import State
 
@@ -126,6 +127,9 @@ def main(argv: list[str] | None = None) -> int:
         config.COST_CAP_USD = args.cost_cap
     final = run()
     print(render_digest(final))
+    reminder = onboard_store.review_reminder()
+    if reminder:
+        print(reminder)
     failures = final["stats"].get("source_failures")
     if failures:
         print("source fetch failures:", failures, file=sys.stderr)

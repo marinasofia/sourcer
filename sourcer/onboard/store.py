@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any
 
 from .. import config
+from .items import FILE
 
 FACT_KINDS = ("job", "project", "education", "certification", "publication", "other")
 STATUSES = ("pending", "approved", "rejected")
@@ -60,6 +61,25 @@ def save_sources(data: dict[str, Any]) -> None:
     write_private(config.SOURCES_PATH, json.dumps(data, indent=2) + "\n")
 
 
+def review_reminder() -> str:
+    """One line for the morning digest when facts wait for review, else ""."""
+    if not config.FACTS_PATH.exists():
+        return ""
+    n = sum(1 for f in load_facts()["facts"] if f.get("status") == "pending")
+    if not n:
+        return ""
+    return (
+        f"{n} {'fact' if n == 1 else 'facts'} waiting for your review. Run `sourcer facts review`."
+    )
+
+
+def mark_synced() -> None:
+    """Record when ``sourcer sync`` last ran (shown by ``sourcer sync`` reminders)."""
+    data = load_sources()
+    data["synced_at"] = now()
+    save_sources(data)
+
+
 def add_source(data: dict[str, Any], spec: dict[str, Any]) -> bool:
     """Add a source unless one with the same id is there. True when added."""
     if any(s["id"] == spec["id"] for s in data["sources"]):
@@ -83,17 +103,44 @@ def save_facts(data: dict[str, Any]) -> None:
     write_private(config.FACTS_PATH, json.dumps(data, indent=2, ensure_ascii=False) + "\n")
 
 
+def _quote_key(fact: dict[str, Any]) -> tuple[str, str]:
+    return str(fact.get("source_id")), " ".join(str(fact.get("quote") or "").lower().split())
+
+
 def merge_facts(data: dict[str, Any], new: Iterable[dict[str, Any]]) -> int:
-    """Queue new candidate facts; a fact already known (same id) keeps its
-    status and any edit. Returns how many were added."""
+    """Queue new candidate facts; a fact already known keeps its status and
+    any edit. Known means the same id, or the same quote from the same
+    source: a changed resume is read again, and only what is really new or
+    changed in it is queued. Returns how many were added."""
     known = {f["id"] for f in data["facts"]}
+    quotes = {_quote_key(f) for f in data["facts"]}
     added = 0
     for fact in new:
-        if fact["id"] not in known:
-            data["facts"].append({**fact, "status": "pending"})
-            known.add(fact["id"])
-            added += 1
+        if fact["id"] in known or _quote_key(fact) in quotes:
+            continue
+        data["facts"].append({**fact, "status": "pending"})
+        known.add(fact["id"])
+        quotes.add(_quote_key(fact))
+        added += 1
     return added
+
+
+def save_stamps(collected: dict[str, Any], scanned: dict[str, str]) -> None:
+    """Keep each collector's stamps (``Collected.stamps``) in its source entry
+    once every item a stamp covers has been read."""
+    data = load_sources()
+    changed = False
+    for source in data["sources"]:
+        got = collected.get(source["id"])
+        if got is None:
+            continue
+        for key, stamp in got.stamps.items():
+            covered = [i for i in got.items if key in (FILE, i.location)]
+            if all(scanned.get(i.id) == i.sha for i in covered):
+                source.setdefault("seen", {})[key] = stamp
+                changed = True
+    if changed:
+        save_sources(data)
 
 
 # ---------------------------------------------------------------- audit log

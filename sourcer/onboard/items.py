@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
 # The source types a candidate can add. "link" is recorded now and read by a
@@ -40,12 +41,38 @@ class SourceItem:
 @dataclass
 class Collected:
     """What a collector found: items to read, files or repos it read (for the
-    preview and the consent line), and short notes for the candidate."""
+    preview and the consent line), and short notes for the candidate.
+
+    ``stamps`` say what was seen, so the next scan can skip what did not
+    change: ``FILE`` maps to the hash of a whole file (resume, export zip),
+    any other key is an item location (a repo URL) mapped to its last change.
+    A stamp is saved into the source entry only once every item it covers
+    has been read, so a declined or failed scan reads it again next time."""
 
     items: list[SourceItem] = field(default_factory=list)
     read: list[str] = field(default_factory=list)
     notes: list[str] = field(default_factory=list)
     skipped: dict[str, int] = field(default_factory=dict)
+    stamps: dict[str, str] = field(default_factory=dict)
+
+
+FILE = "file"
+UNCHANGED = "unchanged since the last scan"
+
+
+def file_hash(path: Path) -> str:
+    """The sha256 of a file, read in chunks."""
+    h = hashlib.sha256()
+    with path.open("rb") as fh:
+        for chunk in iter(lambda: fh.read(1 << 16), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def seen(source: dict[str, Any], key: str) -> str | None:
+    """The stamp saved for ``key`` the last time this source was read."""
+    stamps = source.get("seen")
+    return stamps.get(key) if isinstance(stamps, dict) else None
 
 
 def source_spec(kind: str, value: str, **extra: Any) -> dict[str, Any]:

@@ -381,19 +381,40 @@ class Outcome:
     code: int = 0
     facts: list[dict[str, Any]] = field(default_factory=list)
     collected: dict[str, Any] = field(default_factory=dict)
+    added: int = 0  # facts newly queued for review
+    waiting: int = 0  # model calls that need a yes nobody could give (no terminal)
 
 
-def _scan(  # noqa: PLR0911 (each early stop says why no call ran)
+def _scan(
     console: Console,
     backend_choice: str = "auto",
     *,
     only: set[str] | None = None,
     dry_run: bool = False,
     first: bool = False,
+    word: str = "",
     client_factory: Callable[[], Any] | None = None,
 ) -> Outcome:
     """Read the sources (all, or the ids in ``only``), show what will be sent,
-    and with consent extract candidate facts. No model call without a yes."""
+    and with consent extract candidate facts. No model call without a yes.
+    Afterwards each source keeps the stamps of what was fully read."""
+    outcome = _scan_sources(console, backend_choice, only=only, dry_run=dry_run, first=first,
+                            word=word, client_factory=client_factory)  # fmt: skip
+    if outcome.collected:
+        store.save_stamps(outcome.collected, store.load_facts()["scanned"])
+    return outcome
+
+
+def _scan_sources(  # noqa: PLR0911 (each early stop says why no call ran)
+    console: Console,
+    backend_choice: str,
+    *,
+    only: set[str] | None,
+    dry_run: bool,
+    first: bool,
+    word: str,
+    client_factory: Callable[[], Any] | None,
+) -> Outcome:
     sources = [s for s in store.load_sources()["sources"] if only is None or s["id"] in only]
     if not sources:
         console.say("No sources yet. Add some with `sourcer init --add`.")
@@ -422,7 +443,7 @@ def _scan(  # noqa: PLR0911 (each early stop says why no call ran)
         else "on your Claude subscription"
     )
     calls = f"about {plural(est.calls, 'model call')} {cost}"
-    word = "First scan" if first else "This scan"
+    word = word or ("First scan" if first else "This scan")
     line = (
         f"{word} reads {_reads_line(sources, collected)}, {calls}. Continue? [Y/n]"
         "  (p to preview what will be sent)"
@@ -432,7 +453,8 @@ def _scan(  # noqa: PLR0911 (each early stop says why no call ran)
                     "raise it with --cost-cap.")  # fmt: skip
     if not _gate(console, items, line):
         console.say("No model calls made.")
-        return Outcome(0, collected=collected)
+        waiting = est.calls if not (console.yes or console.interactive) else 0
+        return Outcome(0, collected=collected, waiting=waiting)
     config.LLM_BACKEND = backend.name
     result = run((client_factory or llm.get_client)(), items, backend, llm.Usage())
     added = store.merge_facts(facts, result.facts)
@@ -451,7 +473,7 @@ def _scan(  # noqa: PLR0911 (each early stop says why no call ran)
         console.say(f"{result.failed_calls} calls failed; run `sourcer facts scan` to retry them.")
     if result.stopped:
         console.say(f"Stopped early: {result.stopped}.")
-    return Outcome(0, result.facts, collected)
+    return Outcome(0, result.facts, collected, added)
 
 
 def scan(
@@ -893,6 +915,13 @@ def _parser() -> argparse.ArgumentParser:
     forget_p.add_argument("--all", action="store_true", dest="everything")
     forget_p.add_argument("--yes", action="store_true")
 
+    sync_p = sub.add_parser(
+        "sync", parents=[common], help="recheck every source and queue new or changed facts"
+    )
+    sync_p.add_argument(
+        "--quiet", action="store_true", help="for scheduled runs: no prompts, one line of output"
+    )
+
     skills_p = sub.add_parser("skills", help="skill weights with reasons, and your overrides")
     skills_sub = skills_p.add_subparsers(dest="action")
     set_p = skills_sub.add_parser("set", help="keep your own weight for a skill")
@@ -922,6 +951,11 @@ def main(argv: list[str] | None = None, console: Console | None = None) -> int: 
         return init(console, args)
     if args.command == "forget":
         return forget(console, args.source, args.everything)
+    if args.command == "sync":
+        from .sync import sync  # noqa: PLC0415 (sync builds on this module)
+
+        choice = args.backend if args.backend != "auto" else default_backend()
+        return sync(console, choice, quiet=args.quiet, dry_run=args.dry_run)
     if args.command == "skills":
         return skills_cmd(console, args.action, getattr(args, "name", ""),
                           getattr(args, "weight", None), getattr(args, "force", False))  # fmt: skip

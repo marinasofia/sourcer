@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from .. import config
-from .items import Collected, SourceItem
+from .items import FILE, UNCHANGED, Collected, SourceItem, file_hash, seen
 from .privacy import redact
 
 SUFFIXES = (".pdf", ".docx", ".txt", ".md")
@@ -79,6 +79,10 @@ def collect(source: dict[str, Any]) -> Collected:
     path = Path(source["value"]).expanduser()
     out = Collected()
     try:
+        out.stamps[FILE] = file_hash(path)
+        if seen(source, FILE) == out.stamps[FILE]:
+            out.notes.append(UNCHANGED)
+            return out
         text = read_text(path)
     except (OSError, ValueError, RuntimeError) as exc:
         out.notes.append(f"resume not read: {exc}")

@@ -15,7 +15,7 @@ import zipfile
 from pathlib import Path
 from typing import Any
 
-from .items import Collected, SourceItem
+from .items import FILE, UNCHANGED, Collected, SourceItem, file_hash, seen
 from .privacy import redact
 
 MEMBERS = {
@@ -54,6 +54,10 @@ def collect(source: dict[str, Any]) -> Collected:
     path = Path(source["value"]).expanduser()
     out = Collected()
     try:
+        out.stamps[FILE] = file_hash(path)
+        if seen(source, FILE) == out.stamps[FILE]:
+            out.notes.append(UNCHANGED)
+            return out
         archive = zipfile.ZipFile(path)
     except (OSError, zipfile.BadZipFile) as exc:
         out.notes.append(f"LinkedIn export not read: {exc}")

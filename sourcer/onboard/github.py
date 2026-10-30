@@ -17,7 +17,7 @@ import requests
 
 from .. import config, net
 from ..log import get_logger
-from .items import Collected, SourceItem
+from .items import Collected, SourceItem, seen
 from .privacy import redact
 from .store import audit
 
@@ -125,14 +125,23 @@ def collect(source: dict[str, Any]) -> Collected:
         return out
     try:
         repos = list_repos(user, source["id"], config.ONBOARD_GITHUB_MAX_REPOS)
+        same = 0
         for repo in repos:
             name = repo["name"]
+            url = str(repo.get("html_url") or f"https://github.com/{user}/{name}")
+            pushed = str(repo.get("pushed_at") or "")
+            if pushed and seen(source, url) == pushed:
+                same += 1  # nothing pushed since it was read: README and languages are the same
+                continue
             excerpt = repo_excerpt(
                 repo, _languages(user, name, source["id"]), _readme(user, name, source["id"])
             )
-            url = str(repo.get("html_url") or f"https://github.com/{user}/{name}")
             out.items.append(SourceItem(source["id"], "github", url, excerpt))
             out.read.append(name)
+            if pushed:
+                out.stamps[url] = pushed
+        if same:
+            out.notes.append(f"{same} repos unchanged since the last scan")
     except RateLimited as exc:
         out.notes.append(f"{exc}; kept {len(out.items)} repos. Set GITHUB_TOKEN for more.")
     except (LookupError, requests.RequestException, ValueError) as exc:
