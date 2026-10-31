@@ -90,3 +90,27 @@ def test_check_exclusion_is_the_scoring_time_verdict() -> None:
     )  # a level grade, not an exclusion
     assert eligibility.check_exclusion(p, PROFILE) is None
     assert eligibility.check_exclusion(posting(title="Staff Analyst"), PROFILE)
+
+
+def test_us_person_top_firm_years_and_full_time_no_sponsorship_are_hard_bars() -> None:
+    from sourcer.eligibility import eligible
+
+    profile = {
+        "us_citizen": False,
+        "top_firm_experience": False,
+        "full_time_needs_future_sponsorship": True,
+    }
+    person = {"title": "Strategist", "description": "Requirements:\nU.S. Person Required"}
+    assert eligible(person, profile).rule == "citizenship_required"
+    firm = {
+        "title": "Strategy and Operations",
+        "description": "Needs:\n1 to 3 years at a top consulting, private equity, or banking firm",
+    }
+    assert eligible(firm, profile).rule == "prior_firm_required"
+    no_visa = "Requirements:\nThe company will not pursue visa sponsorship for these positions."
+    nyc = {"location": "New York, NY", "description": no_visa}
+    full_time = {**nyc, "title": "Analyst, Data Science", "employment_type": "full time"}
+    assert eligible(full_time, profile).rule == "no_sponsorship"
+    # an internship ends before sponsorship matters; the rule waits for the profile
+    assert eligible({**nyc, "title": "Data Science Intern"}, profile).ok
+    assert eligible(full_time, {"us_citizen": False}).ok

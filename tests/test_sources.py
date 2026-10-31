@@ -411,3 +411,19 @@ def test_fetch_simplify_raises_only_when_every_list_is_down() -> None:
         pytest.raises(requests.RequestException, match="down"),
     ):
         sources.fetch_simplify()
+
+
+def test_lever_text_carries_its_lists_and_closing_text() -> None:
+    payload = [
+        {
+            "text": "Analyst",
+            "descriptionPlain": "Join the team.",
+            "lists": [{"text": "Requirements", "content": "<li>U.S. Person Required</li>"}],
+            "additionalPlain": "We are an equal opportunity employer.",
+        }
+    ]
+    with patch("sourcer.net.get", return_value=FakeResp(payload)):
+        jobs = sources.fetch_lever("x")
+    text = jobs[0]["description"]
+    assert "Join the team." in text and "U.S. Person Required" in text and "Requirements" in text
+    assert "equal opportunity" in text

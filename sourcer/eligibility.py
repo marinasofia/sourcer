@@ -57,6 +57,7 @@ RULES: dict[str, str] = {
     "internship_before_availability": "Internship before availability",
     "graduation_window": "Graduation date",
     "no_sponsorship": "Visa",
+    "prior_firm_required": "Prior employer",
     "student_visa_barred": "Visa",
     "citizenship_required": "Citizenship",
     "clearance_required": "Clearance",
@@ -248,12 +249,30 @@ def _rule_graduation_window(parsed: Posting, profile: Profile | None) -> Verdict
     return _no("graduation_window", reason) if reason else None
 
 
+def _full_time(parsed: Posting) -> bool:
+    """A full time role: said so, or not an internship by its title."""
+    kind = str(parsed.get("employment_type") or "").lower().replace("_", " ").replace("-", " ")
+    if kind:
+        return kind == "full time"
+    return not re.search(r"\bintern(?:ship)?s?\b|\bco-?op\b", str(parsed.get("title") or ""), re.I)
+
+
 def _rule_eligibility(parsed: Posting, profile: Profile | None) -> Verdict | None:
     """Read mandatory eligibility from the original text, never the model summary."""
     description = str(parsed.get("description") or "")
     found = config.eligibility_evidence(description, profile, str(parsed.get("title") or ""))
     if found:
         return _no(found[0], f'{found[0]}: "{found[1]}"', found[1])
+    if (profile or {}).get("full_time_needs_future_sponsorship") is True and _full_time(parsed):
+        # a full time role that will not sponsor ends when the student visa's work time does
+        for line, optional in config.requirement_lines(description):
+            if (
+                not optional
+                and config._NO_SPONSOR_RE.search(line)
+                and not config.welcomes_opt(description)
+            ):
+                quote = config._quote(line)
+                return _no("no_sponsorship", f'no_sponsorship: "{quote}"', quote)
     wide = config.starts_in_wide_window(dict(parsed))
     quote = config.description_location_conflict(description, wide)
     if quote:
