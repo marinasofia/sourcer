@@ -22,7 +22,7 @@ classifiers = [
   "Topic :: Office/Business",
 ]
 dependencies = [
-  "anthropic>=0.40,<2",
+  "anthropic>=0.40,<3",
   "beautifulsoup4>=4.12,<5",
   "langgraph>=0.2,<2",
   "mcp>=2.0,<3",
@@ -36,7 +36,7 @@ browser = ["playwright>=1.50,<2"]
 # sourcer init and sourcer facts: read PDF and DOCX resumes
 onboard = ["pypdf>=6.0,<7", "python-docx>=1.1,<2"]
 snowflake = [
-  "snowflake-connector-python>=4.0,<5",
+  "snowflake-connector-python>=4.0,<6",
   "cryptography>=50",   # PYSEC-2026-35/36/2141/3552/3553/3554, GHSA-537c-gmf6-5ccf
   "pyopenssl>=26",      # PYSEC-2026-2268/2269
 ]
