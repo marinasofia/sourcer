@@ -93,8 +93,6 @@ def test_check_exclusion_is_the_scoring_time_verdict() -> None:
 
 
 def test_us_person_top_firm_years_and_full_time_no_sponsorship_are_hard_bars() -> None:
-    from sourcer.eligibility import eligible
-
     profile = {
         "us_citizen": False,
         "top_firm_experience": False,

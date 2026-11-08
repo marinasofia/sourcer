@@ -78,5 +78,7 @@ def fetch(client: DiscoveryClient, sleep=time.sleep) -> list[CompanyCandidate]:
     if failed and len(failed) == len(BUILTIN_URLS):
         raise failed[-1]
     if failed:
-        log.warning("builtin: %d of %d pages failed after %d tries", len(failed), len(BUILTIN_URLS), TRIES)
+        log.warning(
+            "builtin: %d of %d pages failed after %d tries", len(failed), len(BUILTIN_URLS), TRIES
+        )
     return out

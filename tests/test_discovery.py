@@ -240,7 +240,8 @@ def test_getro_configuration_and_fetch() -> None:
 
 
 CARD = (
-    '<div class="company-card-horizontal"><a data-track-id="title" href="/company/{name}">{name}</a>'
+    '<div class="company-card-horizontal">'
+    '<a data-track-id="title" href="/company/{name}">{name}</a>'
     " 10 Employees</div>"
 )
 

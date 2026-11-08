@@ -348,7 +348,8 @@ _LATER_RE = re.compile(r"\bfuture\b|\bH-?1-?B\b", re.I)
 PRIOR_FIRM_RE = re.compile(
     r"\b\d+\s*(?:\+|to|-)?\s*\d*\s*\+?\s*years?\b[^.\n]{0,40}?\bat an?\s+"
     r"(?:top|leading|elite|tier[- ]?(?:1|one)|top[- ]tier|bulge[- ]bracket|premier)\b[^.\n]{0,40}?"
-    r"\b(?:consulting|private equity|banking|investment bank\w*|hedge fund|venture capital|strategy)\b",
+    r"\b(?:consulting|private equity|banking|investment bank\w*|hedge fund|"
+    r"venture capital|strategy)\b",
     re.I,
 )
 
@@ -424,7 +425,7 @@ def eligibility_conflict(description: str, profile: dict[str, Any] | None) -> st
 GOVERNMENT_TRACK_RE = re.compile(r"\b(?:U\.?S\.? Government|USG)\b", re.I)
 
 
-def eligibility_evidence(
+def eligibility_evidence(  # noqa: PLR0911  one return per kind of bar reads clearest
     description: str, profile: dict[str, Any] | None, title: str = ""
 ) -> tuple[str, str] | None:
     """(reason code, the posting's own words that triggered it), else None.
