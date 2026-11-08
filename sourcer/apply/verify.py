@@ -56,7 +56,10 @@ ATS_HOSTS = (
 CLOSED_RE = re.compile(
     r"(no longer accepting|job is no longer|position has been filled"
     r"|posting is closed|job not found|position[ \w]{0,20} closed"
-    r"|this job has expired|requisition[ \w]{0,20} closed)",
+    r"|this job has expired|requisition[ \w]{0,20} closed"
+    # SuccessFactors career sites keep a closed role's page up with this line
+    # (Paccar, Nov 8 2026: two closed roles reached the apply list)
+    r"|job is currently unposted|no longer (?:available|open for applications))",
     re.I,
 )
 UA = {"User-Agent": "Mozilla/5.0 (compatible; sourcer-verify)"}
