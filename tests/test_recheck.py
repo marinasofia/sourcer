@@ -166,3 +166,30 @@ def test_program_ended() -> None:
     assert recheck.program_ended("Summer 2027 cohort", TODAY) is None
     assert recheck.program_ended("Runs June 2026 through August 2026", TODAY) == "8/2026"
     assert recheck.program_ended("Fall 2026 and Spring 2027", TODAY) is None
+
+
+def test_a_careers_page_wrapping_a_greenhouse_job_asks_greenhouse() -> None:
+    url = "https://www.coinbase.com/careers/positions/8175510?gh_jid=8175510"
+    embed = Resp(200)
+    embed.url = "https://job-boards.greenhouse.io/embed/job_app?for=coinbase&token=8175510"
+    api = "https://boards-api.greenhouse.io/v1/boards/coinbase/jobs/8175510"
+    with board(
+        {
+            "https://boards.greenhouse.io/embed": embed,
+            api: Resp(200, {"first_published": "2026-10-09"}),
+        }
+    ):
+        assert recheck.official(url).listed is True
+    with board({"https://boards.greenhouse.io/embed": embed, api: Resp(404)}):
+        assert recheck.official(url).listed is False
+
+
+def test_tiktok_reads_its_job_code_and_a_removed_job_shell() -> None:
+    url = "https://lifeattiktok.com/search/7699388672743950645"
+    page = "x" * recheck.TIKTOK_MIN_PAGE
+    with board({url: Resp(200, text=page + "Job Code : A110703A Apply to this job")}):
+        assert recheck.official(url).listed is True
+    with board({url: Resp(200, text=page)}):
+        assert recheck.official(url).listed is False
+    with board({url: Resp(200, text="short")}):
+        assert recheck.official(url).listed is None

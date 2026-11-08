@@ -93,6 +93,40 @@ def _greenhouse(parts: Any, segs: list[str]) -> Official | None:
     return Official(True, _day(r.json().get("first_published")), "greenhouse")
 
 
+def _greenhouse_jid(parts: Any) -> Official | None:
+    """A company careers page that wraps a Greenhouse job (``?gh_jid=``, Coinbase):
+    Greenhouse's embed address redirects to the board name, then the API answers."""
+    job = parse_qs(parts.query).get("gh_jid", [None])[0]
+    if not (job and job.isdigit()):
+        return None
+    r = _get(f"https://boards.greenhouse.io/embed/job_app?token={job}")
+    final = urlparse(str(getattr(r, "url", "") or ""))
+    slug = parse_qs(final.query).get("for", [None])[0]
+    if not slug:
+        return None
+    return _greenhouse(
+        urlparse(f"https://boards.greenhouse.io/{slug}/jobs/{job}"), [slug, "jobs", job]
+    )
+
+
+# TikTok's careers site renders a live job with its job code; a removed one
+# comes back as the bare search shell (Nov 8 2026)
+TIKTOK_MIN_PAGE = 50_000
+
+
+def _tiktok(url: str, segs: list[str]) -> Official | None:
+    if len(segs) < 2 or segs[0] != "search" or not segs[1].isdigit():
+        return None
+    r = _get(url)
+    if r is None or not r.ok or len(r.text) < TIKTOK_MIN_PAGE:
+        return Official(None, via="tiktok")
+    if "Job Code" in r.text:
+        return Official(True, via="tiktok")
+    if "Apply to this job" not in r.text:
+        return Official(False, via="tiktok")
+    return Official(None, via="tiktok")
+
+
 def _ashby(segs: list[str]) -> Official | None:
     if len(segs) < 2:
         return None
@@ -209,6 +243,10 @@ def official(url: str) -> Official:
         found = _eightfold(host, segs)
     elif host.endswith(".oraclecloud.com"):
         found = _oracle(host, segs)
+    elif host == "lifeattiktok.com" or host.endswith(".lifeattiktok.com"):
+        found = _tiktok(url, segs)
+    if found is None and "gh_jid=" in parts.query:
+        found = _greenhouse_jid(parts)
     if found is not None:
         return found
     r = _get_public(url)  # any host: only public addresses, every redirect checked
