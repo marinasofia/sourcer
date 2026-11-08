@@ -138,6 +138,10 @@ def test_eightfold_asks_the_details_api_not_the_page() -> None:
     assert reason == "no longer listed on the company's board"
     assert not recheck.CLOSED_RE.search("AND -position.ats_data.status:CLOSED AND")
     assert recheck.CLOSED_RE.search("This position is now closed")
+    # a SuccessFactors page for a closed role (Paccar, Nov 8 2026)
+    assert recheck.CLOSED_RE.search("Thank you for your interest. This job is currently unposted.")
+    assert recheck.CLOSED_RE.search("This position is no longer available")
+    assert not recheck.CLOSED_RE.search("Benefits available to all employees. Apply now")
 
 
 AMEX = "https://egug.fa.us2.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_1/job/26012982"
