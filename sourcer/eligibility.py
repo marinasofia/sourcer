@@ -274,9 +274,9 @@ def _rule_eligibility(parsed: Posting, profile: Profile | None) -> Verdict | Non
                 quote = config._quote(line)
                 return _no("no_sponsorship", f'no_sponsorship: "{quote}"', quote)
     wide = config.starts_in_wide_window(dict(parsed))
-    quote = config.description_location_conflict(description, wide)
-    if quote:
-        return _no("location_required", f'location required outside scope: "{quote}"', quote)
+    conflict = config.description_location_conflict(description, wide)
+    if conflict:
+        return _no("location_required", f'location required outside scope: "{conflict}"', conflict)
     return None
 
 

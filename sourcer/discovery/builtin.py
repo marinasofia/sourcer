@@ -3,12 +3,20 @@
 from __future__ import annotations
 
 import re
+import time
+from collections.abc import Callable
 from urllib.parse import urljoin
 
+import requests
 from bs4 import BeautifulSoup
 
+from ..log import get_logger
 from .http import DiscoveryClient
 from .models import CompanyCandidate
+
+log = get_logger(__name__)
+TRIES = 3  # each page, so a network still waking up costs one page, not the source
+WAIT = 5.0  # seconds before the second try, doubled before the third
 
 # First page of each category only: Built In's robots.txt allows company
 # directory pages but not deep pagination. Categories cover the candidate's
@@ -53,8 +61,27 @@ def parse_page(html: str, source_url: str) -> list[CompanyCandidate]:
     return out
 
 
-def fetch(client: DiscoveryClient) -> list[CompanyCandidate]:
-    out = []
+def fetch(
+    client: DiscoveryClient, sleep: Callable[[float], None] = time.sleep
+) -> list[CompanyCandidate]:
+    """Every category page, each tried up to TRIES times. A page that still
+    fails is skipped and logged; the source fails only when no page loads
+    (one reset connection used to drop all ~340 companies)."""
+    out, failed = [], []
     for url in BUILTIN_URLS:
-        out.extend(parse_page(client.get(url).text, url))
+        for attempt in range(TRIES):
+            try:
+                out.extend(parse_page(client.get(url).text, url))
+                break
+            except requests.RequestException as exc:
+                if attempt == TRIES - 1:
+                    failed.append(exc)
+                else:
+                    sleep(WAIT * 2**attempt)
+    if failed and len(failed) == len(BUILTIN_URLS):
+        raise failed[-1]
+    if failed:
+        log.warning(
+            "builtin: %d of %d pages failed after %d tries", len(failed), len(BUILTIN_URLS), TRIES
+        )
     return out

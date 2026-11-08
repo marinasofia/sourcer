@@ -237,3 +237,42 @@ def test_getro_configuration_and_fetch() -> None:
     assert len(rows) == 1
     assert rows[0].name == "Acme"
     assert rows[0].tags == ("New York", "Data")
+
+
+CARD = (
+    '<div class="company-card-horizontal">'
+    '<a data-track-id="title" href="/company/{name}">{name}</a>'
+    " 10 Employees</div>"
+)
+
+
+class _FlakyClient:
+    """Fails the first call to each URL in ``flaky`` and every call to ``dead``."""
+
+    def __init__(self, flaky: set[str] | None = None, dead: set[str] | None = None) -> None:
+        self.flaky, self.dead, self.seen = flaky or set(), dead or set(), []
+
+    def get(self, url: str) -> Any:
+        self.seen.append(url)
+        if url in self.dead or (url in self.flaky and self.seen.count(url) == 1):
+            raise requests.ConnectionError("Connection reset by peer")
+        return MagicMock(text=CARD.format(name=url.rsplit("/", 1)[-1]))
+
+
+def test_builtin_retries_a_reset_page_and_keeps_the_rest() -> None:
+    first, second = builtin.BUILTIN_URLS[:2]
+    waits: list[float] = []
+    client = _FlakyClient(flaky={first}, dead={second})
+    rows = builtin.fetch(client, sleep=waits.append)  # type: ignore[arg-type]
+    names = {r.name for r in rows}
+    assert first.rsplit("/", 1)[-1] in names  # retried and kept
+    assert second.rsplit("/", 1)[-1] not in names  # skipped after every try
+    assert len(rows) == len(builtin.BUILTIN_URLS) - 1  # one bad page no longer drops the source
+    assert client.seen.count(second) == builtin.TRIES
+    assert waits[0] == builtin.WAIT
+
+
+def test_builtin_fails_only_when_no_page_loads() -> None:
+    client = _FlakyClient(dead=set(builtin.BUILTIN_URLS))
+    with pytest.raises(requests.ConnectionError):
+        builtin.fetch(client, sleep=lambda s: None)  # type: ignore[arg-type]
