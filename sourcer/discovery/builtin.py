@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 import time
+from collections.abc import Callable
 from urllib.parse import urljoin
 
 import requests
@@ -60,7 +61,9 @@ def parse_page(html: str, source_url: str) -> list[CompanyCandidate]:
     return out
 
 
-def fetch(client: DiscoveryClient, sleep=time.sleep) -> list[CompanyCandidate]:
+def fetch(
+    client: DiscoveryClient, sleep: Callable[[float], None] = time.sleep
+) -> list[CompanyCandidate]:
     """Every category page, each tried up to TRIES times. A page that still
     fails is skipped and logged; the source fails only when no page loads
     (one reset connection used to drop all ~340 companies)."""
