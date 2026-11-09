@@ -64,3 +64,18 @@ def test_one_failed_model_call_skips_that_listing_not_the_whole_run(monkeypatch:
         MagicMock(), MagicMock(), usage, skills={}, profile=None, limit=5
     )
     assert done == 1
+
+
+def test_scoring_stops_at_the_run_time_limit(monkeypatch: Any) -> None:
+    rows = [{"company": "A", "title": "Analyst"}, {"company": "B", "title": "Analyst"}]
+    monkeypatch.setattr(score_listings, "check_titles", lambda *a, **k: 0)
+    monkeypatch.setattr(score_listings, "select_rows", lambda conn, limit: rows)
+    seen: list[str] = []
+    monkeypatch.setattr(
+        score_listings, "score_one", lambda c, cl, u, row, **kw: seen.append(row["company"])
+    )
+    monkeypatch.setattr(score_listings.llm, "within_run_minutes", lambda: False)
+    done = score_listings.score_pending(
+        MagicMock(), MagicMock(), MagicMock(est_cost_usd=0.0), skills={}, profile=None, limit=5
+    )
+    assert done == 0 and seen == []

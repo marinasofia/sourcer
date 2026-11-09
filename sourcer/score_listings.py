@@ -374,7 +374,10 @@ def score_pending(
     check_titles(conn, client, usage)
     done = 0
     for row in select_rows(conn, limit):
-        if usage.est_cost_usd >= config.COST_CAP_USD:
+        # the run's time limit too, not only the cost cap: past SOURCER_RUN_MINUTES every
+        # listing still fetched its page and failed "model budget exhausted", and the cloud
+        # job ran out its timeout before saving (Nov 9 2026)
+        if usage.est_cost_usd >= config.COST_CAP_USD or not llm.within_run_minutes():
             break
         try:
             result = score_one(conn, client, usage, row, skills=skills, profile=profile)
