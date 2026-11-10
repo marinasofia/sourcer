@@ -231,7 +231,9 @@ _ASKS_OF = {"candidates", "applicants", "hires", "individuals", "you", "persons"
 
 def _about_others(line: str) -> bool:
     m = _OTHERS_RE.search(line)
-    return bool(m) and m["who"].lower() not in _ASKS_OF and not re.search(r"\bmust\b", line, re.I)
+    if m is None:
+        return False
+    return m["who"].lower() not in _ASKS_OF and not re.search(r"\bmust\b", line, re.I)
 
 
 def _optional_after(line: str, position: int) -> bool:
