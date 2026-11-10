@@ -222,7 +222,7 @@ _OPTIONAL_WORD_RE = re.compile(r"\b(preferred|nice.to.have|bonus|not required|id
 # "AI Forward Deployed Engineers have 3+ years in a customer-facing role" describes
 # another role or the team, not this posting's ask; "Candidates have" or "You have" still asks
 _OTHERS_RE = re.compile(
-    r"^\W*(?:(?:our|the|most|all|many|these)\s+)?(?:[\w&/-]+\s+){0,5}?(?P<who>[A-Za-z]+s)\s+"
+    r"^\W*+(?:(?:our|the|most|all|many|these)\s+)?(?:[\w&/-]+\s+){0,5}?(?P<who>[A-Za-z]+s)\s+"
     r"(?:typically\s+|usually\s+|often\s+|generally\s+)?(?:have|has|bring)\b",
     re.I,
 )
