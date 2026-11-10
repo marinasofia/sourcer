@@ -95,7 +95,11 @@ def level_fit(parsed: Posting, profile: Profile | None) -> str:
     max_yrs = profile.get("max_years_experience", 2)
     grad_year = profile.get("grad_year")
 
-    if sen in ("senior", "mid") or (yrs is not None and yrs > max_yrs):
+    over = yrs is not None and yrs > max_yrs
+    if over and yrs is not None and yrs <= config.MAX_ENTRY_YEARS:
+        # the same allowance as the years rule: internships or projects meet a year or two
+        over = not config.experience_met_by_student_work(str(parsed.get("description") or ""))
+    if sen in ("senior", "mid") or over:
         return "misfit"
     years_in_start = [int(y) for y in re.findall(r"20\d\d", sd)]
     if (
