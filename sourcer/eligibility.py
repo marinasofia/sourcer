@@ -134,6 +134,11 @@ def _rule_years(parsed: Posting, profile: Profile | None) -> Verdict | None:
         config.MAX_ENTRY_YEARS, (profile or {}).get("max_years_experience", config.MAX_ENTRY_YEARS)
     )
     if yrs is not None and yrs > limit:
+        # a year or two that internships or projects meet is not a bar for a student
+        if yrs <= config.MAX_ENTRY_YEARS and config.experience_met_by_student_work(
+            str(parsed.get("description") or "")
+        ):
+            return None
         return _no("years", f"requires {yrs:g}+ years experience")
     return None
 

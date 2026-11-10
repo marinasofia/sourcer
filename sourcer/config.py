@@ -169,7 +169,7 @@ _YEAR_WORDS = {
 }
 _YEAR_NUMBER = r"\d+(?:\.\d+)?|zero|one|two|three|four|five|six|seven|eight|nine|ten"
 EXPERIENCE_RE = re.compile(
-    rf"\b(?P<minimum>{_YEAR_NUMBER})(?:\s*(?:-|to)\s*(?P<top>{_YEAR_NUMBER}))?\s*\+?\s*years?['\u2019]?\s+"
+    rf"\b(?P<minimum>{_YEAR_NUMBER})(?:\s*(?:-|to)\s*(?P<top>{_YEAR_NUMBER}))?\s*\+?\s*years?(?:\(s\))?['\u2019]?\s+"
     # after "of", any few words may name the field: "3+ years of professional software
     # engineering experience"; without "of", only the usual qualifiers
     r"(?:of\s+(?:[\w/&.+#,\u2010\u2011-]+\s+){0,6}?"
@@ -177,7 +177,7 @@ EXPERIENCE_RE = re.compile(
     r"experience\b"
     # a "+" or a range marks a requirement even without the word experience:
     # "5+ years in product management", "3 to 6+ years administering DocuSign"
-    rf"|\b(?P<stated>{_YEAR_NUMBER})\s*(?:\+|(?:-|to)\s*(?P<stated_top>{_YEAR_NUMBER})\s*\+?)\s*years?['\u2019]?\s+"
+    rf"|\b(?P<stated>{_YEAR_NUMBER})\s*(?:\+|(?:-|to)\s*(?P<stated_top>{_YEAR_NUMBER})\s*\+?)\s*years?(?:\(s\))?['\u2019]?\s+"
     r"(?:in|building|selling|closing|administering|working|leading|managing|shipping"
     r"|developing|designing|running|owning)\b",
     re.I,
@@ -229,11 +229,41 @@ _OTHERS_RE = re.compile(
 _ASKS_OF = {"candidates", "applicants", "hires", "individuals", "you", "persons", "graduates"}
 
 
+# "After 1-2 years in this role, you will be prepared..." is the path, not an ask
+_CAREER_PATH_RE = re.compile(
+    rf"^\W*+(?:after|within)\s+(?:your\s+first\s+)?(?:{_YEAR_NUMBER})"
+    rf"(?:\s*(?:-|to)\s*(?:{_YEAR_NUMBER}))?\s+years?\b",
+    re.I,
+)
+
+
 def _about_others(line: str) -> bool:
+    if _CAREER_PATH_RE.search(line):
+        return True
     m = _OTHERS_RE.search(line)
     if m is None:
         return False
     return m["who"].lower() not in _ASKS_OF and not re.search(r"\bmust\b", line, re.I)
+
+
+# "1-2 years of work or internship experience, or impressive personal/school projects"
+# counts internships or projects: a student with either meets it
+_COUNTS_STUDENT_WORK_RE = re.compile(
+    r"\b(?:or|including|incl\.?)\s+(?:\w+\s+){0,3}?internships?\b"
+    r"|\binternships?\s+(?:or|and)\s+(?:\w+\s+){0,2}?(?:work|professional)\b"
+    r"|\bor\s+(?:[\w/-]+\s+){0,4}?projects?\b",
+    re.I,
+)
+
+
+def experience_met_by_student_work(description: str) -> bool:
+    """Every stated years requirement counts internships or projects."""
+    hits = [
+        line
+        for line, optional in requirement_lines(description)
+        if not optional and not _about_others(line) and EXPERIENCE_RE.search(line)
+    ]
+    return bool(hits) and all(_COUNTS_STUDENT_WORK_RE.search(line) for line in hits)
 
 
 def _optional_after(line: str, position: int) -> bool:
