@@ -92,6 +92,7 @@ def test_ny_or_sf_office_is_an_nyc_option() -> None:
         ("- 5+ years building production software.", 5.0),
         ("Successful candidates have 4+ years of analytics experience.", 4.0),
         ("Engineers must have 3+ years of experience.", 3.0),
+        ("You have 1-2 year(s) of work experience at start-up tech companies.", 1.0),
     ],
 )
 def test_more_experience_wordings_are_read(line: str, years: float) -> None:
@@ -108,6 +109,7 @@ def test_more_experience_wordings_are_read(line: str, years: float) -> None:
         # Regal: a comparison paragraph about a different role
         "AI Forward Deployed Engineers have 3+ years in a technical customer-facing role.",
         "Our engineers typically have 10+ years of experience.",
+        "After 1-2 years in this role, you will be ready for senior roles in engineering.",
     ],
 )
 def test_years_that_are_not_a_requirement_stay_unread(line: str) -> None:

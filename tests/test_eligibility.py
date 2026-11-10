@@ -112,3 +112,23 @@ def test_us_person_top_firm_years_and_full_time_no_sponsorship_are_hard_bars() -
     # an internship ends before sponsorship matters; the rule waits for the profile
     assert eligible({**nyc, "title": "Data Science Intern"}, profile).ok
     assert eligible(full_time, {"us_citizen": False}).ok
+
+
+@pytest.mark.parametrize(
+    ("line", "kept"),
+    [
+        # Regal AI Product Specialist: internships or projects meet the year or two
+        (
+            "You have 1-2 year(s) of work or internship experience at start-up tech companies, "
+            "or impressive personal/school projects that you can provide documentation for.",
+            True,
+        ),
+        ("1+ years of professional experience, including internships.", True),
+        ("2+ years of professional experience in analytics.", False),
+        ("3+ years of work or internship experience.", False),  # past the entry cap
+    ],
+)
+def test_internships_or_projects_meet_a_short_years_ask(line: str, kept: bool) -> None:
+    profile = {**PROFILE, "max_years_experience": 0}
+    p = posting(description=line, years_experience_min=None)
+    assert (eligibility.check_exclusion(p, profile) is None) is kept
