@@ -118,8 +118,11 @@ def test_us_person_top_firm_years_and_full_time_no_sponsorship_are_hard_bars() -
     ("line", "kept"),
     [
         # Regal AI Product Specialist: internships or projects meet the year or two
-        ("You have 1-2 year(s) of work or internship experience at start-up tech companies, "
-         "or impressive personal/school projects that you can provide documentation for.", True),
+        (
+            "You have 1-2 year(s) of work or internship experience at start-up tech companies, "
+            "or impressive personal/school projects that you can provide documentation for.",
+            True,
+        ),
         ("1+ years of professional experience, including internships.", True),
         ("2+ years of professional experience in analytics.", False),
         ("3+ years of work or internship experience.", False),  # past the entry cap
