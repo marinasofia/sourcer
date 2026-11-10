@@ -52,7 +52,7 @@ jobs:
           uv pip compile pyproject.toml --python-version 3.12 --extra dev --extra aws --extra snowflake --extra onboard --generate-hashes --constraint requirements-dev.txt -o /tmp/req-dev.txt -q
           diff <(grep -vE '^[[:space:]]*#' requirements.txt) <(grep -vE '^[[:space:]]*#' /tmp/req.txt)
           diff <(grep -vE '^[[:space:]]*#' requirements-dev.txt) <(grep -vE '^[[:space:]]*#' /tmp/req-dev.txt)
-          uv pip compile pyproject.toml --python-version 3.12 --extra browser --generate-hashes --constraint requirements.txt -o /tmp/req-browser.txt -q
+          uv pip compile pyproject.toml --python-version 3.12 --extra browser --generate-hashes --constraint requirements.txt --constraint requirements-browser.txt -o /tmp/req-browser.txt -q
           diff <(grep -vE '^[[:space:]]*#' requirements-browser.txt) <(grep -vE '^[[:space:]]*#' /tmp/req-browser.txt)
           uv pip compile security/requirements.in --python-version 3.12 --generate-hashes --constraint security/requirements.txt -o /tmp/security-req.txt -q
           diff <(grep -vE '^[[:space:]]*#' security/requirements.txt) <(grep -vE '^[[:space:]]*#' /tmp/security-req.txt)
