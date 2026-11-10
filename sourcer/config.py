@@ -219,6 +219,21 @@ def requirement_lines(description: str) -> Iterator[tuple[str, bool]]:
 _OPTIONAL_WORD_RE = re.compile(r"\b(preferred|nice.to.have|bonus|not required|ideally)\b", re.I)
 
 
+# "AI Forward Deployed Engineers have 3+ years in a customer-facing role" describes
+# another role or the team, not this posting's ask; "Candidates have" or "You have" still asks
+_OTHERS_RE = re.compile(
+    r"^\W*(?:(?:our|the|most|all|many|these)\s+)?(?:[\w&/-]+\s+){0,5}?(?P<who>[A-Za-z]+s)\s+"
+    r"(?:typically\s+|usually\s+|often\s+|generally\s+)?(?:have|has|bring)\b",
+    re.I,
+)
+_ASKS_OF = {"candidates", "applicants", "hires", "individuals", "you", "persons", "graduates"}
+
+
+def _about_others(line: str) -> bool:
+    m = _OTHERS_RE.search(line)
+    return bool(m) and m["who"].lower() not in _ASKS_OF and not re.search(r"\bmust\b", line, re.I)
+
+
 def _optional_after(line: str, position: int) -> bool:
     """The line is optional only through an "ideally" after ``position``:
     "7+ years of sales experience, ideally in SaaS" still requires the seven
@@ -241,6 +256,8 @@ def experience_range_too_high(description: str) -> str | None:
     "0-3 years" and "1-2 years" are entry level. Returns the range as read
     ("1 to 3"), or None."""
     for line, optional in requirement_lines(description):
+        if _about_others(line):
+            continue
         for match in EXPERIENCE_RE.finditer(line):
             if optional and not _optional_after(line, match.end()):
                 continue
@@ -259,6 +276,8 @@ def explicit_experience_minimum(description: str) -> float | None:
     """
     requirements = []
     for line, optional in requirement_lines(description):
+        if _about_others(line):
+            continue
         values = []
         for match in EXPERIENCE_RE.finditer(line):
             if optional and not _optional_after(line, match.end()):

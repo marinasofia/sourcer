@@ -90,6 +90,8 @@ def test_ny_or_sf_office_is_an_nyc_option() -> None:
         ("Have a proven track record of 8+ years\u2019 experience in B2B sales.", 8.0),
         ("- 4+ years of software, data, or machine learning engineering experience.", 4.0),
         ("- 5+ years building production software.", 5.0),
+        ("Successful candidates have 4+ years of analytics experience.", 4.0),
+        ("Engineers must have 3+ years of experience.", 3.0),
     ],
 )
 def test_more_experience_wordings_are_read(line: str, years: float) -> None:
@@ -103,6 +105,9 @@ def test_more_experience_wordings_are_read(line: str, years: float) -> None:
         "A 2 year rotational program across four teams.",
         "Preferred: 5+ years in consulting.",  # optional before the requirement
         "We have 10 years in business serving clients.",  # no plus or range
+        # Regal: a comparison paragraph about a different role
+        "AI Forward Deployed Engineers have 3+ years in a technical customer-facing role.",
+        "Our engineers typically have 10+ years of experience.",
     ],
 )
 def test_years_that_are_not_a_requirement_stay_unread(line: str) -> None:
