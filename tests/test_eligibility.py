@@ -132,3 +132,14 @@ def test_internships_or_projects_meet_a_short_years_ask(line: str, kept: bool) -
     profile = {**PROFILE, "max_years_experience": 0}
     p = posting(description=line, years_experience_min=None)
     assert (eligibility.check_exclusion(p, profile) is None) is kept
+
+
+def test_level_fit_takes_internships_or_projects_for_a_year_or_two() -> None:
+    profile = {**PROFILE, "max_years_experience": 0}
+    met = "You have 1-2 year(s) of work or internship experience, or impressive school projects."
+    p = posting(seniority="entry", years_experience_min=1, description=met)
+    assert eligibility.level_fit(p, profile) == "fit"
+    p = posting(
+        seniority="entry", years_experience_min=1, description="1+ years of work experience."
+    )
+    assert eligibility.level_fit(p, profile) == "misfit"
