@@ -1189,6 +1189,9 @@ _AT_LEAST_RE = re.compile(
     r"\b(?:or later|or after|and later|and after|after|no earlier than)\b", re.I
 )
 _AT_MOST_RE = re.compile(r"\b(?:or earlier|or before|before|by|no later than|prior to)\b", re.I)
+# a season or month just before a dated one, joined by or/and/to (a real posting:
+# "expected to graduate by Summer or Fall 2027" read as Fall only, and "by" was missed)
+_BARE_WHEN_RE = re.compile(rf"\b({_WHEN_WORDS})\s*(?:or|and|to|through|/|-)\s*$", re.I)
 _CLASS_OF_RE = re.compile(r"\bclass(?:es)? of\s+(20\d\d)(?:\s*(?:,|or|and|/)\s*(20\d\d))?", re.I)
 _STANDINGS = ("freshman", "sophomore", "junior", "senior")
 _STANDING_RE = re.compile(
@@ -1223,10 +1226,16 @@ def _listed_window(text: str) -> tuple[tuple[int, int], tuple[int, int]] | None:
             (int(m.group(2)), _month(m.group(1), end=False), _month(m.group(1), end=True))
             for m in found
         ]
+        # "by Summer or Fall 2027": a season or month with no year shares the next one's
+        bare = _BARE_WHEN_RE.search(s[: found[0].start()])
+        if bare:
+            year = int(found[0].group(2))
+            dates.append((year, _month(bare.group(1), end=False), _month(bare.group(1), end=True)))
         lo = min((y, m0) for y, m0, _ in dates)
         hi = max((y, m1) for y, _, m1 in dates)
         # a bound word counts only right around the dates, not anywhere in the sentence
-        near = s[max(0, found[0].start() - 12) : found[-1].end() + 15]
+        start = bare.start() if bare else found[0].start()
+        near = s[max(0, start - 12) : found[-1].end() + 15]
         if _AT_LEAST_RE.search(near):
             hi = (9999, 12)
         elif _AT_MOST_RE.search(near):
