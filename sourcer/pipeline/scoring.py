@@ -43,6 +43,11 @@ def _read_posting(state: State, url: str) -> str | None:
     return read(url) if read else None
 
 
+def _out_of_budget(state: State) -> bool:
+    """The cost cap or the run's time limit (SOURCER_RUN_MINUTES) is reached."""
+    return _cost_cap_reached(state["usage"]) or not llm.within_run_minutes()
+
+
 def _listing_record(p: Posting) -> Posting:
     """A SimplifyJobs listing has no text to parse; it bypasses the model."""
     return {
@@ -190,6 +195,15 @@ def parse_node(state: State) -> State:
         if config.is_senior_title(p["title"]):
             parsed_list.append(_senior_record(p))
             continue
+        if _out_of_budget(state):
+            # past the run's time limit or the cost cap: set the rest aside at once, without
+            # downloading each page first. Nov 11 2026: the cloud spent its last minute fetching
+            # 763 pages it could never read, was stopped mid download, and saved nothing.
+            skipped_cost_cap += 1
+            age = config.posting_age_days(p.get("posted_at"))
+            skipped_fresh += age is not None and age <= 3
+            _set_aside(state, p, "skipped: run time or spending limit reached", place=n)
+            continue
         if not _has_text(p):
             # never score a title alone: the model guesses, and a 3+ years role
             # with a clearance rule scored 92. Read the posting, or keep it unscored.
@@ -209,11 +223,11 @@ def parse_node(state: State) -> State:
             continue
         usage = state["usage"]
         client = state.get("client")
-        if client is None or _cost_cap_reached(usage):
+        if client is None or _out_of_budget(state):
             skipped_cost_cap += 1
             age = config.posting_age_days(p.get("posted_at"))
             skipped_fresh += age is not None and age <= 3
-            _set_aside(state, p, "skipped: spending cap reached", place=n)
+            _set_aside(state, p, "skipped: run time or spending limit reached", place=n)
             continue
         try:
             # the rules read the checked facts first: an excluded posting is never scored
