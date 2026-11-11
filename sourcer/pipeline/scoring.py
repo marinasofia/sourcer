@@ -195,7 +195,8 @@ def parse_node(state: State) -> State:
         if config.is_senior_title(p["title"]):
             parsed_list.append(_senior_record(p))
             continue
-        if _out_of_budget(state):
+        client = state.get("client")
+        if client is None or _out_of_budget(state):
             # past the run's time limit or the cost cap: set the rest aside at once, without
             # downloading each page first. Nov 11 2026: the cloud spent its last minute fetching
             # 763 pages it could never read, was stopped mid download, and saved nothing.
@@ -222,13 +223,6 @@ def parse_node(state: State) -> State:
             parsed_list.append(_traced_twin(p, twin))
             continue
         usage = state["usage"]
-        client = state.get("client")
-        if client is None or _out_of_budget(state):
-            skipped_cost_cap += 1
-            age = config.posting_age_days(p.get("posted_at"))
-            skipped_fresh += age is not None and age <= 3
-            _set_aside(state, p, "skipped: run time or spending limit reached", place=n)
-            continue
         try:
             # the rules read the checked facts first: an excluded posting is never scored
             data, err = llm.parse_and_score(
