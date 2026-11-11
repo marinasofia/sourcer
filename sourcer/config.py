@@ -1189,7 +1189,7 @@ _AT_LEAST_RE = re.compile(
     r"\b(?:or later|or after|and later|and after|after|no earlier than)\b", re.I
 )
 _AT_MOST_RE = re.compile(r"\b(?:or earlier|or before|before|by|no later than|prior to)\b", re.I)
-# a season or month just before a dated one, joined by or/and/to (Deloitte, Nov 11 2026:
+# a season or month just before a dated one, joined by or/and/to (a real posting:
 # "expected to graduate by Summer or Fall 2027" read as Fall only, and "by" was missed)
 _BARE_WHEN_RE = re.compile(rf"\b({_WHEN_WORDS})\s*(?:or|and|to|through|/|-)\s*$", re.I)
 _CLASS_OF_RE = re.compile(r"\bclass(?:es)? of\s+(20\d\d)(?:\s*(?:,|or|and|/)\s*(20\d\d))?", re.I)
