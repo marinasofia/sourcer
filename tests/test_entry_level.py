@@ -408,6 +408,11 @@ def test_graduation_window(line: str, reason: str | None) -> None:
         ("Open to students graduating in 2027 or 2028.", None),
         ("Candidates must be graduating in December 2026 or May 2027.", None),
         ("Recent graduates or students graduating by June 2027.", None),
+        # Deloitte Tax Technology, Nov 11 2026: "by" is a deadline, and Summer shares 2027
+        ("Must be currently enrolled in an accredited college or university and expected to "
+         "graduate by Summer or Fall 2027 or have completed a bachelor's degree", None),
+        ("Students graduating in Summer or Fall 2027.", f"graduation window 6/2027 to 12/2027 {YOURS}"),
+        ("Students graduating in Spring or Summer 2027.", None),
         ("Current juniors and seniors are welcome to apply.", None),
         ("You will graduate with a bachelor's degree, helped by mentors from 2026 cohort.", None),
     ],
