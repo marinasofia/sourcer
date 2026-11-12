@@ -79,11 +79,15 @@ FIT_CHECKS = """Fit checks: compare the posting with the CANDIDATE EVIDENCE belo
   "role_fit": "core" when the role's day to day work is the kind of work her evidence shows she has done; "adjacent" when it is a neighbouring kind of work she could step into; "other" when it is a different kind of work.
   "must_haves": the posting's real requirements, at most 8 (skills, tools, kinds of experience; NOT years, degree, level, location, or dates). Name each "need" in at most 6 words. For each: "covered" is "yes" when a fact in her evidence directly shows it, "partly" when her evidence shows something close, "no" otherwise. Be strict: "yes" needs a specific fact, not general ability. A requirement that names alternatives ("Python or R", "Tableau or Power BI", "a degree in finance, statistics or computer science") is one need, and it is "yes" when a fact shows any one of them. What the role will teach her or expose her to ("you could be exposed to", "you will learn", "work experiences include") is never a must have; take must haves from the required and preferred qualifications.
   "stretch": "research" when the role needs research publications, a PhD, or research scientist depth; "senior" when it is founding, lead, or scoped for several years of experience whatever the title says; otherwise "none".
-  "rationale": at most 20 words naming the strongest piece of her evidence for this role. No em or en dashes."""  # noqa: E501
+  "rationale": at most 20 words naming the strongest piece of her evidence for this role. No em or en dashes.
+  "could_do": whether she could do this job well, judged on ability, not on exact matches: "yes" when a hiring manager for this posting would likely interview her because work in her evidence carries over (similar tasks, tools or outcomes in another setting), "maybe" when it is a stretch she could argue, "no" otherwise. The must haves stay strict; this answer is separate.
+  "could_do_reason": at most 15 words naming the evidence that carries over."""  # noqa: E501
 CHECKS_JSON = """  "role_fit": string,                   // "core", "adjacent", "other"
   "must_haves": [{"need": string, "covered": string}],   // covered: "yes", "partly", "no"
   "stretch": string,                    // "none", "research", "senior"
-  "rationale": string"""
+  "rationale": string,
+  "could_do": string,                   // "yes", "maybe", "no"
+  "could_do_reason": string"""
 
 # Edge checks: does the day to day work match the work she says she wants,
 # in her words from the profile? Asked only when the profile says. Each answer
@@ -226,6 +230,12 @@ PARSE_CHECKS_REQUIRED: Schema = {**PARSE_REQUIRED, **CHECKS_REQUIRED}
 FIT_BANDS = {"core": (55, 40), "adjacent": (40, 35), "other": (10, 20)}
 STRETCH_PENALTY = {"none": 0, "research": 20, "senior": 15}
 NO_MUST_HAVES_COVERAGE = 0.5
+# Could do: a job she could do well whose must haves her facts match only loosely (strict
+# "yes" needs a specific fact) is not lost. Her skills score is lifted to at least what
+# neighbouring work with this coverage earns; the edge checks (the work she wants and avoids)
+# still weigh in after, so a job of the kind she avoids stays low.
+COULD_DO_FIT = "adjacent"
+COULD_DO_COVERAGE = 0.75
 EDGE_REQUIRED: Schema = {"edge": (int, float), "edge_quote": str, "coding_gate": str}
 # With edge checks on: score = EDGE_WEIGHT x edge (as 0 to 100) + the rest x the
 # skills score, minus CODING_PENALTY when a quoted coding interview gate is
@@ -565,6 +575,20 @@ def calibrate(raw: int) -> int:
     return 100
 
 
+def _could_do(
+    data: dict[str, Any], score: float, stretch: str
+) -> tuple[float, str, str, int | None]:
+    """(score, answer, reason, the score before a lift or None): a "yes" lifts the skills score
+    to what neighbouring work with COULD_DO_COVERAGE earns, never lowers it."""
+    could = str(data.pop("could_do", "") or "").lower()
+    why = str(data.pop("could_do_reason", "") or "").strip()[:120]
+    if could != "yes":
+        return score, could, why, None
+    b, sp = FIT_BANDS[COULD_DO_FIT]
+    floor = b + sp * COULD_DO_COVERAGE - STRETCH_PENALTY.get(stretch, 0)
+    return (floor, could, why, round(score)) if floor > score else (score, could, why, None)
+
+
 def score_from_checks(data: dict[str, Any], text: str = "") -> dict[str, Any]:
     """Turn the fit checks into ``score`` and ``rationale``, in place, and
     drop the check fields. The rationale says what the number is made of:
@@ -586,6 +610,7 @@ def score_from_checks(data: dict[str, Any], text: str = "") -> dict[str, Any]:
     coverage = covered / len(musts) if musts else NO_MUST_HAVES_COVERAGE
     base, span = FIT_BANDS.get(fit, FIT_BANDS["other"])
     score = base + span * coverage - STRETCH_PENALTY.get(stretch, 0)
+    score, could, could_why, lifted = _could_do(data, score, stretch)
     data["score"] = max(0, min(100, round(score)))
     missing = [str(m["need"]) for m in musts if str(m.get("covered", "")).lower() == "no"]
     full = sum(1 for m in musts if str(m.get("covered", "")).lower() == "yes")
@@ -594,6 +619,8 @@ def score_from_checks(data: dict[str, Any], text: str = "") -> dict[str, Any]:
         parts.append(f"covers {full} of {len(musts)} must haves")
     if missing:
         parts.append("missing " + ", ".join(missing[:2]))
+    if lifted is not None:
+        parts.append(f"could do it ({could_why or 'work carries over'})")
     if asked:
         parts.append(f"asks {asked} years of experience")
     elif stretch in ("research", "senior"):
@@ -615,7 +642,11 @@ def score_from_checks(data: dict[str, Any], text: str = "") -> dict[str, Any]:
         + f" = {data['score']}",
         # no must haves read: coverage was assumed, not measured
         "assumed": not musts,
+        "could_do": could or None,
+        "could_do_reason": could_why or None,
     }
+    if lifted is not None:
+        data["fit_checks"]["formula"] += f"; could do: lifted from {lifted}"
     if edge is not None:
         skills = data["score"]
         blended = EDGE_WEIGHT * edge["edge"] * 20 + (1 - EDGE_WEIGHT) * skills
@@ -671,6 +702,8 @@ def scorer_version() -> str:
         EDGE_UNQUOTED_CAP,
         QUOTE_MIN_CHARS,
         CALIBRATION,
+        COULD_DO_FIT,
+        COULD_DO_COVERAGE,
     ]
     return _sha(json.dumps(parts, sort_keys=True))
 
