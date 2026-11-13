@@ -484,19 +484,29 @@ UNTRUSTED_NOTE = (
 )
 
 
+# Any spelling of a posting tag: either slash or none, spaces, attributes,
+# and full width or angle quote brackets, so nothing inside can close or open
+# the fence. Look-alike brackets count because the model reads them as tags.
+_FENCE_TAG = re.compile(
+    r"[<\uff1c\u2039\u3008]\s*/?\s*posting\b[^>\uff1e\u203a\u3009]*[>\uff1e\u203a\u3009]", re.I
+)
+
+
 def untrusted(text: Any) -> str:
     """Posting text fenced as data; a fence inside it cannot close the block."""
-    clean = re.sub(r"</?\s*posting\s*>", " ", str(text or ""), flags=re.I)
+    clean = _FENCE_TAG.sub(" ", str(text or ""))
     return f"<posting>\n{clean}\n</posting>"
 
 
 def _posting_user_turn(posting: dict[str, Any]) -> str:
-    return (
-        f"{UNTRUSTED_NOTE}\n\n"
+    """Every field from the board sits inside the fence: a title or company
+    name is employer text too, and can carry instructions."""
+    fields = (
         f"Company: {posting['company']}\nTitle: {posting['title']}\n"
         f"Location: {posting['location']}\nURL: {posting['url']}\n\n"
-        f"Posting text:\n{untrusted(posting['description'])}"
+        f"Posting text:\n{posting['description']}"
     )
+    return f"{UNTRUSTED_NOTE}\n\n{untrusted(fields)}"
 
 
 # keys of a skills_vector.json entry for people, not for the scorer: the

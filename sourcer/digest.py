@@ -5,6 +5,8 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
+from .safetext import one_line
+
 RULE = "=" * 78
 THIN = "-" * 78
 
@@ -37,7 +39,9 @@ def render_digest(state: Mapping[str, Any]) -> str:
         f"  est cost ${stats.get('est_cost_usd')}",
         THIN,
     ]
-    for i, p in enumerate(ranked, 1):
+    for i, raw in enumerate(ranked, 1):
+        # rows stored before ingest stripping may still carry terminal escapes
+        p = {k: one_line(v) if isinstance(v, str) else v for k, v in raw.items()}
         flag = "  [TIMING UNCLEAR]" if p.get("timing_unclear") else ""
         lines.append(f"{i:>2}. [{p['score']:>3}] {p['company']} - {p['title']}{flag}")
         lines.append(

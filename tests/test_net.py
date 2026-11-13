@@ -205,3 +205,50 @@ def test_a_reply_within_the_cap_is_read_once(monkeypatch) -> None:
 def test_get_refuses_plain_http_before_any_connection() -> None:
     with pytest.raises(net.Refused):
         net.get("http://example.com/jobs")
+
+
+@pytest.mark.parametrize("address", ["::7f00:1", "fec0::1"])
+def test_ipv4_compatible_and_site_local_ipv6_are_refused(address: str) -> None:
+    def resolver(host: str, port: int, **kwargs: Any) -> list[tuple[Any, ...]]:
+        del host, kwargs
+        return [(socket.AF_INET6, socket.SOCK_STREAM, 6, "", (address, port))]
+
+    with pytest.raises(ValueError):
+        validate_public_https_url("https://evil.example/", resolver)
+
+
+def test_a_default_safe_session_is_pinned_and_capped(monkeypatch) -> None:
+    session = SafeSession(resolver=public_resolver, interval=0)
+    assert isinstance(session._session.get_adapter("https://jobs.example.com"), net.PublicAdapter)
+    monkeypatch.setattr(net, "MAX_BODY_BYTES", 10)
+    big = Streamed([b"x" * 8, b"x" * 8])
+    seen: dict[str, Any] = {}
+
+    def fake_request(method: str, url: str, **kwargs: Any) -> Streamed:
+        seen.update(kwargs)
+        big.status_code = 200  # type: ignore[attr-defined]
+        return big
+
+    monkeypatch.setattr(session._session, "request", fake_request)
+    with pytest.raises(ValueError):
+        session.get("https://jobs.example.com/")
+    assert seen["stream"] is True and seen["timeout"]
+
+
+class Drip:
+    """A body that hands over one byte per read, forever."""
+
+    def read1(self, size: int, decode_content: bool = True) -> bytes:
+        del size, decode_content
+        return b"x"
+
+
+def test_a_slow_drip_cannot_outlast_the_read_deadline(monkeypatch) -> None:
+    clock = iter(range(0, 10_000))
+    monkeypatch.setattr(net.time, "monotonic", lambda: float(next(clock)))
+    monkeypatch.setattr(net, "MAX_READ_SECONDS", 3.0)
+    reply = Streamed([])
+    reply.raw = Drip()  # type: ignore[attr-defined]
+    with pytest.raises(requests.Timeout):
+        net._capped(reply)  # type: ignore[arg-type]
+    assert reply.closed

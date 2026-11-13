@@ -12,6 +12,7 @@ import sys
 from typing import Any
 
 from . import db
+from .safetext import one_line
 
 SELECT_BOARD = (
     "SELECT id, score, status, company, title, employment_type, start_date "
@@ -31,10 +32,15 @@ def list_postings(conn: db.Connection, status: str | None = None) -> list[Any]:
 
 def format_row(r: Any) -> str:
     score = f"{r['score']:>3}" if r["score"] is not None else "  -"
+    # each stored field on one line, so a terminal escape or line break in a
+    # board's text cannot repaint the screen or forge a row
+    company, title, etype, start = (
+        one_line(r[k] or "") for k in ("company", "title", "employment_type", "start_date")
+    )
     return (
         f"{r['id']:>4}  [{score}]  {r['status']:<9} "
-        f"{r['company']} - {r['title']}  ({r['employment_type']}, "
-        f"start: {r['start_date'] or 'n/a'})"
+        f"{company} - {title}  ({etype or None}, "
+        f"start: {start or 'n/a'})"
     )
 
 

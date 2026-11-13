@@ -97,8 +97,9 @@ FIELD_CHARS = 300  # one remote title, date, name or tag
 
 
 def _cut(text: str, limit: int) -> str:
-    """Redact, then cut: a secret that crosses the cut is masked whole."""
-    return redact(text)[:limit]
+    """Redact, then cut: a secret that crosses the cut is masked whole. The
+    input is cut a margin past the limit first, so a huge page stays cheap."""
+    return redact(text, limit)
 
 
 def _f(value: Any) -> str:
