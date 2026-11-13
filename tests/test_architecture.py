@@ -21,6 +21,7 @@ LAYERS: dict[str, int] = {
     "progress": 0,
     "preferences": 0,
     "eligibility": 0,  # the candidate's rules: reads config only
+    "safetext": 0,  # control character stripping for text from outside
     # 1: infrastructure adapters (model API, storage, boards)
     "llm": 1,
     "claude_cli": 1,

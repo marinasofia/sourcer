@@ -187,3 +187,11 @@ def test_run_minutes_stops_new_calls(monkeypatch):
     client.messages.create.assert_not_called()
     monkeypatch.setattr(config, "RUN_MINUTES", math.inf)
     assert llm.Usage().can_call()
+
+
+def test_overlong_title_or_company_is_refused_before_any_model_call() -> None:
+    with pytest.raises(ValueError):
+        scoring.validate_input("A real posting.", "T" * (scoring.MAX_TITLE_CHARS + 1), "Acme")
+    with pytest.raises(ValueError):
+        scoring.validate_input("A real posting.", "Analyst", "C" * (scoring.MAX_COMPANY_CHARS + 1))
+    scoring.validate_input("A real posting.", "Analyst", "Acme")

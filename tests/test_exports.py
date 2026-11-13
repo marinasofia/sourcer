@@ -113,7 +113,8 @@ def test_showcase_unlabelled_sector_and_empty_summary(tmp_db, paths, posting_row
     db.insert_posting(tmp_db, posting_row(hash="z", company="Unknown Co"))
     tmp_db.commit()
     payload = json.loads(export_showcase.export_showcase(tmp_db, paths / "s.json").read_text())
-    assert payload["postings"][0]["sector"] == "Unlabelled"
+    # Only employers with a public sector label are shown.
+    assert payload["postings"] == []
     assert payload["summary"]["updated"] is None
 
 

@@ -16,6 +16,7 @@ marked alerted so they never spam a later run.
 from __future__ import annotations
 
 import os
+import re
 import shutil
 
 # Only the fixed gh argv in create_issue is executed, without a shell.
@@ -24,6 +25,7 @@ import sys
 from typing import Any
 
 from . import db, log
+from .safetext import one_line
 
 logger = log.get_logger(__name__)
 
@@ -49,13 +51,35 @@ def select_alertable(conn: db.Connection) -> list[dict[str, Any]]:
     return [dict(r) for r in conn.execute(SELECT_ALERTABLE, (ALERT_SCORE,))]
 
 
+# characters that change meaning in GitHub markdown
+_MARKDOWN_SPECIAL = re.compile(r"([\\`*_{}\[\]()<>#+!|~>-])")
+
+
+def md_text(value: Any) -> str:
+    """Board text made inert in an issue: one line, markdown characters
+    escaped, and @ broken up so a company name cannot mention a user."""
+    text = _MARKDOWN_SPECIAL.sub(r"\\\1", one_line(value or ""))
+    return text.replace("@", "@\u200b")
+
+
+def md_url(value: Any) -> str | None:
+    """The URL when it is plain https and safe inside a markdown link."""
+    url = one_line(value or "")
+    if not url.lower().startswith("https://") or any(c in url for c in " ()<>[]`\"'"):
+        return None
+    return url
+
+
 def format_line(p: dict[str, Any]) -> str:
     score = f"[{p['score']:>3}]" if p["score"] is not None else "[ - ]"
-    tag = p["employment_type"] or "?"
-    posted = f" posted {p['posted_at']}" if p["posted_at"] else ""
+    tag = md_text(p["employment_type"] or "?")
+    posted = f" posted {md_text(p['posted_at'])}" if p["posted_at"] else ""
+    title = md_text(p["title"])
+    url = md_url(p["url"])
+    link = f"[{title}]({url})" if url else title
     return (
-        f"- {score} **{p['company']}**: [{p['title']}]({p['url']}) "
-        f"({tag}, start: {p['start_date'] or 'n/a'}{posted})"
+        f"- {score} **{md_text(p['company'])}**: {link} "
+        f"({tag}, start: {md_text(p['start_date'] or 'n/a')}{posted})"
     )
 
 

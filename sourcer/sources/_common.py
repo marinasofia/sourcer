@@ -8,8 +8,27 @@ from typing import Any
 from bs4 import BeautifulSoup
 
 from .. import config, net
+from ..safetext import multi_line, one_line
 
 Posting = dict[str, Any]
+
+
+# fields that may span lines; every other text field is kept on one line
+MULTI_LINE_FIELDS = frozenset({"description"})
+
+
+def safe_posting(posting: Posting) -> Posting:
+    """The posting with control characters stripped from every text field.
+
+    Applied once where postings enter, so no terminal escape or forged line
+    break from a board reaches the database, the digest or the tracker.
+    """
+    for key, value in posting.items():
+        if isinstance(value, str):
+            posting[key] = multi_line(value) if key in MULTI_LINE_FIELDS else one_line(value)
+        elif isinstance(value, list):
+            posting[key] = [one_line(v) if isinstance(v, str) else v for v in value]
+    return posting
 
 
 def clean_html(html: str | None) -> str:

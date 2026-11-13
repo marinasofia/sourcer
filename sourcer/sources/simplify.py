@@ -10,7 +10,7 @@ import requests
 
 from .. import config
 from ..log import get_logger
-from ._common import Posting, _get_json
+from ._common import Posting, _get_json, safe_posting
 
 log = get_logger(__name__)
 
@@ -114,7 +114,7 @@ def fetch_simplify() -> list[Posting]:
         for e in rows:
             listing = _simplify_entry(e, etype, start_tpl, now)
             if listing is not None:
-                out.append(listing)
+                out.append(safe_posting(listing))
     if errors and len(errors) == len(SIMPLIFY_LISTS):
         raise requests.RequestException("; ".join(errors))
     return out

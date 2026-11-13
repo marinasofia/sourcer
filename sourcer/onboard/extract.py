@@ -16,6 +16,7 @@ from typing import Any
 
 from .. import config, llm
 from ..log import get_logger
+from ..safetext import CONTROL_RE, clean, printable  # noqa: F401 (printable and CONTROL_RE are re-exported)
 from .backends import Backend
 from .items import SourceItem, digest
 from .privacy import contact_detail
@@ -100,23 +101,6 @@ def write_preview(items: list[SourceItem], path: Path | None = None) -> Path:
 def _named_in(skill: str, text: str) -> bool:
     s = skill.strip().lower()
     return bool(s) and re.search(r"(?<!\w)" + re.escape(s) + r"(?!\w)", text.lower()) is not None
-
-
-# control characters, and bidi and line separator marks that can reorder a line
-CONTROL_RE = re.compile(
-    r"[\x00-\x1f\x7f-\x9f\u061c\u200e\u200f\u2028\u2029\u202a-\u202e\u2066-\u2069]"
-)
-
-
-def printable(text: Any) -> str:
-    """Text safe to print: control characters (terminal escapes) removed."""
-    return CONTROL_RE.sub("", str(text or ""))
-
-
-def clean(text: Any, limit: int) -> str:
-    """One line of plain text: no control characters (a terminal escape in a
-    source cannot reach the review screen), single spaces, capped."""
-    return " ".join(CONTROL_RE.sub(" ", str(text or "")).split())[:limit]
 
 
 def _skills(named: list[Any], text: str) -> list[str]:

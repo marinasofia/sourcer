@@ -161,13 +161,32 @@ _SECRET_PATTERNS = (
     re.compile(r"\bAIza[0-9A-Za-z_-]{30,}"),
     re.compile(r"\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}"),
     re.compile(r"(?i)\bbearer\s+[A-Za-z0-9._~+/=-]{16,}"),
-    re.compile(r"[a-z][a-z0-9+.-]*://[^\s/]*:[^\s/]*@", re.I),  # credentials in a URL
+    # an Authorization header value of any scheme (Basic, Digest, Token)
+    re.compile(r"(?i)\bauthorization[\"']?\s*[:=]\s*[\"']?[A-Za-z]+\s+[A-Za-z0-9._~+/=-]{4,}"),
+    # credentials in a URL; every part is bounded so a long run of dots and
+    # letters cannot make the match retry from every position
+    re.compile(r"\b[a-z][a-z0-9+.-]{0,30}://[^\s/@:]{0,256}:[^\s/@]{0,256}@", re.I),
+)
+_CREDENTIAL_NAME = (
+    r"[A-Za-z0-9_]{0,64}(?:api[_-]?key|_key|secret|token|(?<![a-z])pass(?:w(?:or)?d)?(?![a-z])|pwd"
+    r"|access[_-]?key)[A-Za-z0-9_]{0,64}"
 )
 _ASSIGNED_SECRET = re.compile(
-    r"(?i)\b([A-Za-z0-9_]*(?:api[_-]?key|_key|secret|token|passw(?:or)?d|pwd|access[_-]?key)[A-Za-z0-9_]*)"
-    r"([\"']?\s*[:=]\s*)([\"']?)[^\s\"',;]{6,}\3"
+    rf"(?i)\b({_CREDENTIAL_NAME})([\"']?\s*[:=]\s*)([\"']?)[^\s\"',;]{{6,}}\3"
 )
-EMAIL_RE = re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b")
+# a quoted value may hold spaces: password = "correct horse battery staple"
+_QUOTED_SECRET = re.compile(
+    rf"(?i)\b({_CREDENTIAL_NAME})([\"']?\s*[:=]\s*)([\"'])[^\"'\n]{{1,500}}\3"
+)
+# a bare 40 character key in the AWS secret format (base64 letters, mixed
+# case and digits); all hex runs of that length are commit hashes and stay
+_FORTY = re.compile(r"(?<![A-Za-z0-9/+=])[A-Za-z0-9/+]{40}(?![A-Za-z0-9/+=])")
+# bounded quantifiers keep the scan linear on hostile text such as "a.a.a.a"
+EMAIL_RE = re.compile(r"\b[A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9.-]{1,253}\.[A-Za-z]{2,24}\b")
+OBFUSCATED_EMAIL_RE = re.compile(
+    r"(?i)\b[A-Za-z0-9._%+-]{1,64}\s*[\[(]\s*at\s*[\])]\s*[A-Za-z0-9-]{1,63}"
+    r"(?:\s*[\[(]\s*dot\s*[\])]\s*[A-Za-z0-9-]{1,63}){1,4}"
+)
 PHONE_RE = re.compile(
     r"(?<![\w.-])(?:\+\d{1,3}[\s.-]?)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}(?![\w.-])"
     r"|(?<![\w.-])\+\d{1,3}(?:[\s.-]?\d{2,4}){2,4}(?![\w.-])"
@@ -175,17 +194,40 @@ PHONE_RE = re.compile(
 REDACTED = "[redacted]"
 
 
-def redact(text: str) -> str:
-    """The text with secrets, email addresses and phone numbers masked."""
+def _looks_like_aws_secret(match: re.Match[str]) -> str:
+    token = match.group(0)
+    hexlike = all(c in "0123456789abcdefABCDEF" for c in token)
+    mixed = any(c.isupper() for c in token) and any(c.islower() for c in token)
+    mixed = mixed and any(c.isdigit() for c in token)
+    return REDACTED if mixed and not hexlike else token
+
+
+# text longer than the caller keeps is cut to this much past the limit before
+# redaction, so a secret that crosses the final cut is still masked whole
+REDACT_MARGIN = 8192
+
+
+def redact(text: str, limit: int | None = None) -> str:
+    """The text with secrets, email addresses and phone numbers masked.
+
+    With ``limit``, only the first ``limit`` characters are returned, and the
+    input is cut a margin past that before any pattern runs, so a huge hostile
+    page costs no more than the excerpt it becomes.
+    """
+    if limit is not None:
+        text = text[: limit + REDACT_MARGIN]
     for pattern in _SECRET_PATTERNS:
         text = pattern.sub(REDACTED, text)
+    text = _QUOTED_SECRET.sub(lambda m: f"{m.group(1)}{m.group(2)}{REDACTED}", text)
     text = _ASSIGNED_SECRET.sub(lambda m: f"{m.group(1)}{m.group(2)}{REDACTED}", text)
+    text = _FORTY.sub(_looks_like_aws_secret, text)
+    text = OBFUSCATED_EMAIL_RE.sub("[email]", text)
     text = EMAIL_RE.sub("[email]", text)
-    return PHONE_RE.sub("[phone]", text)
+    text = PHONE_RE.sub("[phone]", text)
+    return text if limit is None else text[:limit]
 
 
 def contact_detail(text: str) -> bool:
     """True when a fact would carry contact details; such facts are dropped."""
-    return bool(EMAIL_RE.search(text) or PHONE_RE.search(text)) or any(
-        marker in text for marker in ("[email]", "[phone]", REDACTED)
-    )
+    found = EMAIL_RE.search(text) or OBFUSCATED_EMAIL_RE.search(text) or PHONE_RE.search(text)
+    return bool(found) or any(marker in text for marker in ("[email]", "[phone]", REDACTED))

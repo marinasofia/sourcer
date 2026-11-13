@@ -341,6 +341,12 @@ def score_node(state: State) -> State:
 # ------------------------------------------------ shared service for HTTP and MCP
 
 
+# a job title or company name is short; anything longer is not one, and the
+# MCP server has no body size cap of its own to stop it
+MAX_TITLE_CHARS = 300
+MAX_COMPANY_CHARS = 200
+
+
 def validate_input(posting_text: str, title: str, company: str) -> None:
     """Reject malformed requests before allocating a model client or reading skills."""
     if not isinstance(posting_text, str) or not posting_text.strip():
@@ -349,6 +355,11 @@ def validate_input(posting_text: str, title: str, company: str) -> None:
         raise ValueError("title and company must be strings")
     if len(posting_text) > config.MAX_DESCRIPTION_CHARS:
         raise ValueError("posting_text exceeds the configured character limit")
+    if len(title) > MAX_TITLE_CHARS or len(company) > MAX_COMPANY_CHARS:
+        raise ValueError(
+            f"title must be at most {MAX_TITLE_CHARS} characters and company at most "
+            f"{MAX_COMPANY_CHARS}"
+        )
 
 
 def score_text(

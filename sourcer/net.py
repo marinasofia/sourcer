@@ -6,7 +6,7 @@ import ipaddress
 import socket
 import threading
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from typing import Any
 from urllib.parse import urljoin, urlparse, urlunparse
 
@@ -26,10 +26,22 @@ MAX_REDIRECTS = 5
 # Anthropic's Greenhouse board at 10 MB); 8 MB refused them
 MAX_BODY_BYTES = 64_000_000
 MAX_READ_SECONDS = 60.0
-# IPv6 ranges that carry an IPv4 address inside: NAT64, 6to4, Teredo
+# IPv6 ranges that carry an IPv4 address inside (NAT64, 6to4, Teredo, the old
+# IPv4-compatible form) or that were once private (site-local)
 _EMBEDS_IPV4 = tuple(
-    ipaddress.ip_network(n) for n in ("64:ff9b::/96", "64:ff9b:1::/48", "2002::/16", "2001::/32")
+    ipaddress.ip_network(n)
+    for n in (
+        "64:ff9b::/96",
+        "64:ff9b:1::/48",
+        "2002::/16",
+        "2001::/32",
+        "::/96",
+        "fec0::/10",
+    )
 )
+# each read waits at most this long for the next bytes, so the overall
+# MAX_READ_SECONDS deadline is checked at least this often
+READ_POLL_SECONDS = 10.0
 
 
 def is_public(address: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
@@ -88,7 +100,12 @@ def _resolve(host: str, resolver: Resolver) -> list[ipaddress.IPv4Address | ipad
 
 
 class SafeSession:
-    """Requests-compatible session that validates every redirect destination."""
+    """Requests-compatible session that validates every redirect destination.
+
+    Built without a session of its own, it also pins every connection to the
+    checked public address and caps each reply's size and read time, the same
+    guards net.get applies.
+    """
 
     def __init__(
         self,
@@ -96,7 +113,12 @@ class SafeSession:
         resolver: Resolver = socket.getaddrinfo,
         interval: float = 1.0,
     ) -> None:
-        self._session = session or requests.Session()
+        self._cap = session is None
+        if session is None:
+            session = requests.Session()
+            session.mount("https://", PublicAdapter())
+            session.mount("http://", HTTPAdapter(max_retries=0))  # validation rejects http first
+        self._session = session
         self._resolver = resolver
         self._interval = interval
         self._last_request: float | None = None
@@ -112,6 +134,9 @@ class SafeSession:
         if method not in {"GET", "POST"}:
             raise ValueError("SafeSession only permits GET and POST")
         follow = kwargs.pop("allow_redirects", method == "GET")
+        if self._cap:
+            kwargs["stream"] = True
+            kwargs.setdefault("timeout", (10, READ_POLL_SECONDS))
         current = url
         for _ in range(MAX_REDIRECTS + 1):
             current = validate_public_https_url(current, self._resolver)
@@ -120,10 +145,10 @@ class SafeSession:
             self._last_request = time.monotonic()
             response = self._session.request(method, current, allow_redirects=False, **kwargs)
             if response.status_code not in REDIRECT_STATUSES or not follow:
-                return response
+                return _capped(response) if self._cap else response
             location = response.headers.get("Location")
             if not location:
-                return response
+                return _capped(response) if self._cap else response
             destination = urljoin(current, location)
             if method != "GET":
                 raise ValueError("POST redirects are disabled")
@@ -202,6 +227,24 @@ def _public_session() -> SafeSession:
     return session
 
 
+def _chunks(response: requests.Response) -> Iterator[bytes]:
+    """Yield decompressed body bytes as soon as any arrive.
+
+    iter_content(n) waits until n bytes have come in, so a server dripping one
+    byte at a time could hold a read far past the deadline. read1 returns
+    whatever is available, so the caller checks the clock after every byte.
+    """
+    read1 = getattr(getattr(response, "raw", None), "read1", None)
+    if read1 is None:  # not a urllib3 stream (a test double): fall back
+        yield from response.iter_content(64 * 1024)
+        return
+    while True:
+        chunk = read1(64 * 1024, decode_content=True)
+        if not chunk:
+            return
+        yield chunk
+
+
 def _capped(response: requests.Response, limit: int = MAX_BODY_BYTES) -> requests.Response:
     """Read the streamed body within ``limit`` bytes and MAX_READ_SECONDS."""
     limit = min(limit, MAX_BODY_BYTES)
@@ -209,7 +252,7 @@ def _capped(response: requests.Response, limit: int = MAX_BODY_BYTES) -> request
     chunks: list[bytes] = []
     size = 0
     try:
-        for chunk in response.iter_content(64 * 1024):  # decompressed bytes
+        for chunk in _chunks(response):  # decompressed bytes
             size += len(chunk)
             if size > limit:
                 raise ValueError(f"response over {limit} bytes: {response.url}")
@@ -219,6 +262,7 @@ def _capped(response: requests.Response, limit: int = MAX_BODY_BYTES) -> request
     finally:
         response.close()
     response._content = b"".join(chunks)  # the body, read once
+    response._content_consumed = True  # type: ignore[attr-defined]
     return response
 
 
@@ -241,6 +285,7 @@ def post(url: str, **kwargs: Any) -> requests.Response:
 
 def _guarded(method: str, url: str, kwargs: dict[str, Any]) -> requests.Response:
     kwargs["stream"] = True
+    kwargs.setdefault("timeout", (10, READ_POLL_SECONDS))
     limit = int(kwargs.pop("max_bytes", MAX_BODY_BYTES))
     try:
         return _capped(_public_session().request(method, url, **kwargs), limit)

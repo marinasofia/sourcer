@@ -32,7 +32,7 @@ from . import (
     workable,
     workday,
 )
-from ._common import Posting, _get_json, _get_text, clean_html, iso_from_ms
+from ._common import Posting, _get_json, _get_text, clean_html, iso_from_ms, safe_posting
 from .ashby import ASHBY_API, fetch_ashby
 from .greenhouse import GREENHOUSE_API, fetch_greenhouse
 from .lever import LEVER_API, fetch_lever
@@ -105,8 +105,9 @@ FETCHERS: dict[str, Fetcher] = {
 
 
 def fetch_postings(company: dict[str, Any]) -> list[Posting]:
-    """Dispatch to the adapter for the company's ATS type."""
-    return FETCHERS[company["ats"]](company)
+    """Dispatch to the adapter for the company's ATS type. Every text field
+    is stripped of control characters on the way in."""
+    return [safe_posting(p) for p in FETCHERS[company["ats"]](company)]
 
 
 def in_scope(posting: Posting) -> bool:

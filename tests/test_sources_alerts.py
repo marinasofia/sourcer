@@ -3,7 +3,7 @@
 from unittest.mock import patch
 
 from sourcer import db
-from sourcer.alerts import build_body, select_alertable
+from sourcer.alerts import build_body, format_line, select_alertable
 from sourcer.pipeline.scoring import parse_node, score_node
 from sourcer.sources import fetch_ashby, fetch_simplify
 
@@ -150,3 +150,32 @@ def test_alert_selection_and_flood_cap(tmp_path):
     assert names == {"A", "B", "C"}  # 90+, intern, new grad; not the 60
     body = build_body(sel)
     assert "ML Intern" in body and "Mid role" not in body
+
+
+def test_alert_lines_are_inert_markdown() -> None:
+    line = format_line(
+        {
+            "score": 99,
+            "company": "Acme @octocat",
+            "title": "x](https://evil.example) ![](https://evil.example/px.gif) [y",
+            "url": "javascript:alert(1)",
+            "employment_type": "intern",
+            "start_date": None,
+            "posted_at": None,
+        }
+    )
+    assert "@octocat" not in line  # the mention is broken up
+    assert "](https://evil.example)" not in line and "![](" not in line
+    assert "javascript:" not in line
+    safe = format_line(
+        {
+            "score": 90,
+            "company": "Acme",
+            "title": "Data Analyst",
+            "url": "https://jobs.example/1",
+            "employment_type": "intern",
+            "start_date": "summer 2027",
+            "posted_at": "2026-11-01",
+        }
+    )
+    assert "[Data Analyst](https://jobs.example/1)" in safe
