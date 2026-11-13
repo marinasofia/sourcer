@@ -4,7 +4,7 @@ Sourcer finds early career roles worth applying to: it reads thousands of
 company job boards every morning, sets aside what cannot fit with plain rules,
 and has Claude judge the rest against the candidate's own work history.
 
-![Sourcer dashboard showing ranked roles by sector, each with a fit score and a one line reason](docs/images/dashboard.png)
+![A role in Sourcer: a 94% match, the must haves it covers, why it fits, and buttons to tailor a resume or apply](docs/images/role.png)
 
 [![CI](https://github.com/marinasofia/sourcer/actions/workflows/ci.yml/badge.svg)](https://github.com/marinasofia/sourcer/actions/workflows/ci.yml)
 [![Python](https://img.shields.io/badge/python-3.12%20%7C%203.13%20%7C%203.14-blue)](pyproject.toml)
@@ -12,10 +12,11 @@ and has Claude judge the rest against the candidate's own work history.
 [![Checked with mypy](https://img.shields.io/badge/mypy-checked-blue)](pyproject.toml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-yellow.svg)](LICENSE)
 
-![Switching between the cards, bubbles and pyramid views, then filtering to internships and searching "analyst"](docs/images/tour.gif)
+![Stepping through matched roles, then the Search page showing how a search narrows tens of thousands of postings to a short list](docs/images/tour.gif)
 
-The dashboard above is rendered from synthetic sample data (made up companies
-and roles), not from a real search.
+These screens come from the private app that runs on this engine, filled with
+made up companies, roles and run numbers for the screenshots. The app and real
+search data stay in a private repository.
 
 ## Results
 
