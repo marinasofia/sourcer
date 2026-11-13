@@ -203,12 +203,16 @@ fetch("showcase.json").then(r => r.json()).then(d => {
   const s = d.summary;
   document.getElementById("updated").textContent =
     "updated " + (s.updated || "").slice(0, 10) + " · refreshes weekdays";
+  const fmt = n => (n == null ? "n/a" : num(n).toLocaleString("en-US"));
+  const runsCell = s.runs == null
+    ? [(num(s.schema_failure_rate) * 100).toFixed(1) + "%", "schema failure rate"]
+    : [`${fmt(s.runs_without_failures)} of ${fmt(s.runs)}`, "runs with no failures"];
   const cells = [
-    [s.postings_on_boards, "postings scanned / run"],
-    [s.companies_covered, "companies"],
-    [s.roles_scored, "roles scored"],
-    [s.listings_tracked, "listings tracked"],
-    [(num(s.schema_failure_rate) * 100).toFixed(1) + "%", "schema failure rate", true],
+    [fmt(s.postings_on_boards), "postings scanned per run"],
+    [fmt(s.companies_covered), "companies"],
+    [fmt(s.roles_scored), "roles scored"],
+    [fmt(s.listings_tracked), "listings tracked"],
+    runsCell,
   ];
   document.getElementById("summary").innerHTML = cells.map(([v, k, good]) =>
     `<div class="cell"><div class="v${good ? " good" : ""}">${esc(v ?? "n/a")}</div><div class="k">${esc(k)}</div></div>`).join("");
