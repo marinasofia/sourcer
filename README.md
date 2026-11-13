@@ -12,7 +12,7 @@ and has Claude judge the rest against the candidate's own work history.
 [![Checked with mypy](https://img.shields.io/badge/mypy-checked-blue)](pyproject.toml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-yellow.svg)](LICENSE)
 
-![Stepping through matched roles, then the Search page showing how a search narrows tens of thousands of postings to a short list](docs/images/tour.gif)
+![Stepping through matched roles, then the Search funnel showing how a search narrows tens of thousands of postings to a short list](docs/images/tour.gif)
 
 These screens come from the private app that runs on this engine, filled with
 made up companies, roles and run numbers for the screenshots. The app and real
