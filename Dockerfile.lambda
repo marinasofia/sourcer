@@ -2,7 +2,7 @@
 # Local smoke test with the bundled runtime emulator:
 #   docker build -f Dockerfile.lambda -t sourcer-lambda .
 #   docker run --rm -p 127.0.0.1:9000:8080 -e ANTHROPIC_API_KEY=... -e SOURCER_SKIP_S3=1 sourcer-lambda
-FROM public.ecr.aws/lambda/python:3.14@sha256:252cbb0879717b1c049b9f909d86d06d88e129f3208386d7ba1189d535f5f981
+FROM public.ecr.aws/lambda/python:3.15@sha256:14e5711c512caa87a1cb28eba1c4381d964ed1faf7206f16ed05c7ef9692cac4
 
 ENV PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1
