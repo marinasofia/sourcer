@@ -20,14 +20,14 @@ stay in a private repository.
 
 ## Results
 
-From the morning run on October 20, 2026, recorded in the private run log:
+From a full run on November 12, 2026, recorded in the private run log:
 
 | | |
 |---|---|
-| Job boards read | 615 |
-| Postings read | 48,031 |
-| Set aside by rules, before any model call | 45,806 (95%) |
-| New roles judged by the model | 150 |
+| Job boards read | 972 |
+| Postings read | 63,374 |
+| Set aside by rules, before any model call | 60,584 (95.6%) |
+| New roles judged by the model | 83 |
 
 The score scale was calibrated on 85 labelled postings from that private run
 data (23 wanted): a score of 75 keeps 80% of the wanted roles at 65% precision,
@@ -49,8 +49,8 @@ rules in CI (`python -m sourcer.evaluate`).
 - **The model answers checks; code computes the score.** A small model copies
   the posting's facts with quotes, then the scoring model answers fixed yes or
   no checks against the candidate's approved evidence. Arithmetic in code
-  turns the answers into a 0 to 100 score, which keeps scores auditable and
-  stable between runs.
+  turns the answers into a 0 to 100 score, so every score can be traced to
+  the answers behind it.
 - **Rank and learn.** Freshness, deadlines and the score order the list. A role
   still on its board is never dropped for its age, and thumbs up or down move
   a role by at most five points without overriding a rule.

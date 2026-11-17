@@ -242,7 +242,7 @@ def has_job_listing(response: Response, ats_type: str) -> bool:
             and len([part for part in link.path.split("/") if part]) >= 2
         ),
         "greenhouse": lambda link: (
-            (link.hostname or "").lower().endswith("greenhouse.io")
+            (link.hostname or "").lower().endswith(".greenhouse.io")
             and bool(re.search(r"/jobs?/[^/]+", link.path.lower()))
         ),
         "lever": lambda link: (

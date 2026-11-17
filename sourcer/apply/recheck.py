@@ -229,13 +229,13 @@ def official(url: str) -> Official:
     host = (parts.hostname or "").lower()
     segs = [s for s in parts.path.split("/") if s]
     found = None
-    if host.endswith("greenhouse.io"):
+    if host == "greenhouse.io" or host.endswith(".greenhouse.io"):
         found = _greenhouse(parts, segs)
     elif host == "jobs.ashbyhq.com":
         found = _ashby(segs)
     elif host == "jobs.lever.co":
         found = _lever(segs)
-    elif host.endswith("myworkdayjobs.com"):
+    elif host.endswith(".myworkdayjobs.com"):
         found = _workday(url)
     elif host == "jobs.smartrecruiters.com":
         found = _smartrecruiters(segs)

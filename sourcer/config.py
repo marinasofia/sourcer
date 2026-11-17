@@ -389,9 +389,10 @@ _STUDENT_VISA_BARRED_RE = re.compile(
     r"(?:will not be considered|are not eligible|is not eligible|ineligible)\b",
     re.I,
 )
-# For a candidate on OPT, OPT covers the start, so "we do not sponsor" or "must
-# be authorized to work in the US" is fine. A posting that will not sponsor later (H-1B after
-# OPT) is not: "unable to sponsor now or in the future", "will not sponsor H-1B".
+# For a candidate whose profile sets student_visa, OPT covers the start, so "we do
+# not sponsor" or "must be authorized to work in the US" is fine. A posting that
+# will not sponsor later (H-1B after OPT) is not: "unable to sponsor now or in the
+# future", "will not sponsor H-1B".
 _LATER_RE = re.compile(r"\bfuture\b|\bH-?1-?B\b", re.I)
 
 # "1 to 3 years at a top consulting, private equity, or banking firm": years at a
@@ -449,7 +450,7 @@ STAFFING_AGENCY_RE = re.compile(
 
 
 def _status_conflict(line: str, profile: dict[str, Any] | None) -> str | None:
-    """Clearance, sponsorship, citizenship, or a graduation range she is outside."""
+    """Clearance, sponsorship, citizenship, or a graduation range the candidate is outside."""
     if _CLEARANCE_RE.search(line) and not (profile or {}).get("has_clearance"):
         return "clearance_required"
     if _NO_SPONSOR_RE.search(line) and (profile or {}).get("needs_sponsorship") is True:

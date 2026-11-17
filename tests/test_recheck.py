@@ -193,3 +193,13 @@ def test_tiktok_reads_its_job_code_and_a_removed_job_shell() -> None:
         assert recheck.official(url).listed is False
     with board({url: Resp(200, text="short")}):
         assert recheck.official(url).listed is None
+
+
+@pytest.mark.parametrize(
+    "url",
+    ["https://evilgreenhouse.io/acme/jobs/1", "https://acme.notmyworkdayjobs.com/Careers/job/1"],
+)
+def test_a_lookalike_host_is_not_read_as_a_known_board(url: str) -> None:
+    with board({}), patch.multiple(recheck, _get_public=lambda u: None):
+        found = recheck.official(url)
+    assert found.via not in {"greenhouse", "workday"}
