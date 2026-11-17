@@ -54,7 +54,33 @@ def is_public(address: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
     return address.is_global
 
 
-def validate_public_https_url(url: str, resolver: Resolver = socket.getaddrinfo) -> str:
+# a successful name lookup is reused for this long. A search fetches about 1,000
+# boards that live on a handful of hosts, and checking and dialing each one
+# looked the same few names up about 2,000 times; on a Mac just woken, single
+# lookups answered while that burst failed, and runs lost 900 of 1,000 boards
+# to "cannot be resolved" (Nov 17 2026). Failures are never cached.
+DNS_TTL_SECONDS = 300.0
+_DNS_CACHE: dict[tuple[str, int, int], tuple[float, list[tuple[Any, ...]]]] = {}
+_DNS_LOCK = threading.Lock()
+
+
+def cached_getaddrinfo(host: str, port: int, **kwargs: Any) -> list[tuple[Any, ...]]:
+    """socket.getaddrinfo, with successful answers kept for DNS_TTL_SECONDS.
+    The answer is still checked as public on every use, and connections are
+    pinned to it, so reuse cannot reach a private address."""
+    key = (host.lower(), port, int(kwargs.get("type", 0)))
+    now = time.monotonic()
+    with _DNS_LOCK:
+        hit = _DNS_CACHE.get(key)
+    if hit is not None and now - hit[0] < DNS_TTL_SECONDS:
+        return hit[1]
+    records = socket.getaddrinfo(host, port, **kwargs)
+    with _DNS_LOCK:
+        _DNS_CACHE[key] = (now, records)
+    return records
+
+
+def validate_public_https_url(url: str, resolver: Resolver = cached_getaddrinfo) -> str:
     """Return a normalized public HTTPS URL or reject it.
 
     This blocks loopback, private, link-local, multicast, and reserved targets.
@@ -110,7 +136,7 @@ class SafeSession:
     def __init__(
         self,
         session: requests.Session | None = None,
-        resolver: Resolver = socket.getaddrinfo,
+        resolver: Resolver = cached_getaddrinfo,
         interval: float = 1.0,
     ) -> None:
         self._cap = session is None
@@ -196,7 +222,7 @@ def _resolve_public(host: str) -> list[ipaddress.IPv4Address | ipaddress.IPv6Add
     return addresses
 
 
-RESOLVER: Resolver = socket.getaddrinfo
+RESOLVER: Resolver = cached_getaddrinfo
 
 
 class _PinnedPool(HTTPSConnectionPool):
