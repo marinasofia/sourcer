@@ -2,14 +2,12 @@
 
 from __future__ import annotations
 
-import json
-
 import pytest
 
 from sourcer import config, llm, mcp_server, serve
 from sourcer.pipeline import scoring
 from sourcer.pipeline import scoring as pipeline_scoring
-from tests.conftest import GOOD_PARSE_SCORE, make_client
+from tests.conftest import GOOD_PARSE_SCORE, make_client, worker_replies
 
 
 @pytest.mark.parametrize(
@@ -39,7 +37,8 @@ def test_original_eligibility_text_reaches_every_scoring_interface(
         "url": "https://example.com/jobs/eligibility",
         "employment_type": "full time",
     }
-    client = make_client([json.dumps(parsed)])
+    # the extraction reply only: the rules stop the posting before a score
+    client = make_client(worker_replies(parsed, scored=False))
     monkeypatch.setattr(llm, "get_client", lambda: client)
     if interface == "pipeline":
         result = pipeline_scoring.score_node(
@@ -67,7 +66,7 @@ def test_original_eligibility_text_reaches_every_scoring_interface(
 )
 def test_optional_or_absent_eligibility_does_not_exclude(paths, monkeypatch, text):
     monkeypatch.setattr(config, "load_profile", lambda: {"education": "Bachelor's"})
-    client = make_client([json.dumps(GOOD_PARSE_SCORE), '{"score": 88, "rationale": "fit"}'])
+    client = make_client(worker_replies(GOOD_PARSE_SCORE))
     monkeypatch.setattr(llm, "get_client", lambda: client)
     result = scoring.score_text(text, "AI Engineer Intern", "TestCo")
     assert result["excluded"] is False

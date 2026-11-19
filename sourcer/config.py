@@ -1316,8 +1316,16 @@ def load_profile(path: Path | None = None) -> Profile | None:
 
 
 def candidate_targets(profile: Profile | None = None) -> tuple[str, str]:
-    """The work the candidate wants and the work she avoids, in her own
+    """The work the candidate wants and the work they avoid, in their own
     words from the profile ("target_work", "avoid_work"). Plain text about the
     work, never a list of titles, since titles change. Empty when unset."""
     p = profile if profile is not None else load_profile() or {}
     return str(p.get("target_work") or "").strip(), str(p.get("avoid_work") or "").strip()
+
+
+def candidate_level(profile: Profile | None = None) -> str:
+    """The level the candidate targets, in plain words from the profile
+    ("target_level", such as "early career, intern through entry level").
+    Empty when unset; the prompts then use their default."""
+    p = profile if profile is not None else load_profile() or {}
+    return str(p.get("target_level") or "").strip()
