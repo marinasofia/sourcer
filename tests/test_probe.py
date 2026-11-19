@@ -444,3 +444,14 @@ def test_no_company_starts_after_the_time_budget(tmp_db) -> None:
         tmp_db, 10, minutes=60, clock=lambda: now[0], probe=fake, workers=1
     )
     assert len(results) == 2  # the third would start after the hour
+
+
+def test_a_guessed_website_is_not_saved_with_the_result() -> None:
+    guessed = build_target("TestCo")
+    known = build_target("TestCo", "https://testco.io")
+    nothing = FakeRequester({})
+    assert probe_target(guessed, requester=nothing, limiter=RateLimiter(interval=0)).domain is None
+    assert (
+        probe_target(known, requester=nothing, limiter=RateLimiter(interval=0)).domain
+        == "testco.io"
+    )
