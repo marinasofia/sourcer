@@ -388,6 +388,13 @@ def _probe_site(
     return None
 
 
+def _stored_domain(target: ProbeTarget) -> str | None:
+    """The website to save with a result: only one the company's record gave.
+    A domain guessed from the name ("acme.com") was saved before and then
+    blocked the website backfill, which never overwrites a stored domain."""
+    return target.domains[0] if target.known_site and target.domains else None
+
+
 def probe_target(
     target: ProbeTarget,
     requester: Requester | None = None,
@@ -415,7 +422,7 @@ def probe_target(
             if response is not None and has_job_listing(response, platform.ats_type):
                 return ProbeResult(
                     target.name,
-                    target.domains[0] if target.domains else None,
+                    _stored_domain(target),
                     platform.ats_type,
                     slug,
                     url,
@@ -433,7 +440,7 @@ def probe_target(
                 ):
                     return ProbeResult(
                         target.name,
-                        target.domains[0] if target.domains else None,
+                        _stored_domain(target),
                         platform.ats_type,
                         slug,
                         url,
@@ -445,7 +452,7 @@ def probe_target(
             return found
     return ProbeResult(
         target.name,
-        target.domains[0] if target.domains else None,
+        _stored_domain(target),
         None,
         None,
         None,
