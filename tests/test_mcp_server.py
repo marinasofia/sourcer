@@ -8,46 +8,50 @@ from sourcer import db, mcp_server
 from sourcer.pipeline import scoring
 from tests.conftest import make_client
 
-PARSE_REPLY = json.dumps(
-    {
-        "title": "AI Engineer Intern",
-        "location": "New York, NY",
-        "requirements": ["Python"],
-        "seniority": "intern",
-        "tech_stack": ["Python"],
-        "employment_type": "intern",
-        "start_date": "summer 2027",
-        "years_experience_min": None,
-        "work_mode": "remote",
-    }
-)
+TEXT = "Python intern posting. Summer 2027 internship in New York, fully remote."
+EXTRACT = {
+    "employment_type": "intern",
+    "employment_quote": "Summer 2027 internship",
+    "start_date": "Summer 2027",
+    "start_quote": "Summer 2027 internship",
+    "work_mode": "remote",
+    "work_mode_quote": "fully remote",
+    "years_experience_min": None,
+    "years_quote": "",
+    "seniority": "intern",
+    "seniority_quote": "Python intern posting",
+    "requirements": ["Python"],
+    "tech_stack": ["Python"],
+}
+PARSE_REPLY = json.dumps(EXTRACT)
 SCORE_REPLY = json.dumps({"score": 77, "rationale": "Good Python overlap."})
 
 
 def test_score_posting_happy_path(paths, monkeypatch):
     monkeypatch.setattr(scoring.llm, "get_client", lambda: make_client([PARSE_REPLY, SCORE_REPLY]))
-    out = mcp_server.score_posting("Python intern posting", title="AI Intern", company="TestCo")
+    out = mcp_server.score_posting(TEXT, title="AI Intern", company="TestCo")
     assert out["score"] == 77 and out["excluded"] is False
-    assert out["parsed"]["title"] == "AI Intern"
+    assert out["parsed"]["title"] == "AI Intern" and out["parsed"]["company"] == "TestCo"
+    assert out["parsed"]["work_mode"] == "remote" and out["parsed"]["checked"]["work_mode"]
     assert out["est_cost_usd"] > 0
 
 
 def test_score_posting_defaults_and_exclusion(paths, monkeypatch):
-    monkeypatch.setattr(scoring.llm, "get_client", lambda: make_client([PARSE_REPLY]))
-    senior = json.loads(PARSE_REPLY)
-    senior["years_experience_min"] = 7
+    text = "Data engineer. Requires 7 years of experience with Python."
+    senior = {**EXTRACT, "years_experience_min": 7, "years_quote": "Requires 7 years of experience"}
     monkeypatch.setattr(scoring.llm, "get_client", lambda: make_client([json.dumps(senior)]))
-    out = mcp_server.score_posting("text")
+    out = mcp_server.score_posting(text)
     assert out["excluded"] is True and out["score"] == 0
     assert "7+ years" in out["exclusion_reason"]
-    assert out["parsed"]["title"] == "AI Engineer Intern"
+    # no title given: the board's placeholder, never a model's guess
+    assert out["parsed"]["title"] == "untitled" and out["parsed"]["company"] == "unknown"
 
 
 def test_score_posting_failures(paths, monkeypatch):
     monkeypatch.setattr(scoring.llm, "get_client", lambda: make_client(["x", "y"]))
-    assert mcp_server.score_posting("text")["error"].startswith("parse failed")
+    assert mcp_server.score_posting(TEXT)["error"].startswith("parse failed")
     monkeypatch.setattr(scoring.llm, "get_client", lambda: make_client([PARSE_REPLY, "x", "y"]))
-    assert mcp_server.score_posting("text")["error"].startswith("score failed")
+    assert mcp_server.score_posting(TEXT)["error"].startswith("score failed")
 
 
 def test_lookup_scored_filters(paths, posting_row, monkeypatch, tmp_path):

@@ -15,21 +15,10 @@ import pytest
 
 from sourcer import serve
 from sourcer.pipeline import scoring
-from tests.conftest import make_client
+from tests.conftest import make_client, worker_replies
 
-PARSE_REPLY = json.dumps(
-    {
-        "title": "AI Engineer Intern",
-        "location": "New York, NY",
-        "requirements": ["Python"],
-        "seniority": "intern",
-        "tech_stack": ["Python"],
-        "employment_type": "intern",
-        "start_date": "summer 2027",
-        "years_experience_min": None,
-        "work_mode": "onsite",
-    }
-)
+# the extraction worker's reply: the posting's facts, read as unknown without quotes
+PARSE_REPLY = worker_replies(scored=False)[0]
 SCORE_REPLY = json.dumps({"score": 81, "rationale": "Strong Python match."})
 
 

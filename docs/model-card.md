@@ -70,6 +70,12 @@ The CI suite runs the deterministic part on every change.
   fail-closed scan, but the private rationale can be blunt or wrong.
 - **Score drift across vector edits.** Editing the skills vector requires
   `sourcer.rescore`; stored scores are not recomputed automatically.
+- **Prompt changes.** Every prompt is versioned in `llm.PROMPTS` and every
+  score trace records the prompt version and hash. A test pins each
+  version's text, so a prompt cannot change silently. A wording only change
+  marks the earlier version compatible and stored scores stay current; a
+  change in meaning drops the compatibility and `sourcer.rescore` reports
+  those scores as stale ("another prompt version").
 - **Prompt injection.** A posting can instruct the model. The blast radius
   is one wrong score or an invalid reply; nothing from the model is
   executed, and board-provided title, location, and url always win.

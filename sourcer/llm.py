@@ -13,6 +13,8 @@ import json
 import math
 import re
 import time
+from collections.abc import Callable
+from dataclasses import dataclass
 from itertools import pairwise
 from typing import Any
 
@@ -28,21 +30,6 @@ log = get_logger(__name__)
 
 JsonResult = tuple[dict[str, Any] | None, str | None]
 Schema = dict[str, type | tuple[type, ...]]
-
-PARSE_SYSTEM = """You extract structured data from job postings. Respond with ONLY a JSON object, no prose, matching exactly:
-{
-  "title": string,
-  "location": string,
-  "requirements": [string, ...],        // the stated qualifications, condensed
-  "seniority": string,                  // one of: "intern", "entry", "mid", "senior", "unspecified"
-  "tech_stack": [string, ...],          // technologies explicitly mentioned
-  "employment_type": string,            // one of: "intern", "part time", "full time", "contract", "unspecified"
-  "start_date": string | null,          // e.g. "summer 2027", "fall 2026", "2027 new grad", "immediate", or null if not mentioned
-  "years_experience_min": number | null, // minimum years of experience explicitly required, null if not stated
-  "work_mode": string                   // one of: "remote", "hybrid", "onsite", "unspecified"
-}
-For employment_type and start_date, look for phrases like "start date", "2027 new grad", "summer 2027", "fall 2026", "internship", "immediate start". Use "unspecified"/null when the posting does not say.
-For work_mode, look for explicit signals: "fully remote", "remote-first" imply remote; "hybrid", "N days in office", "in-office Tuesdays" imply hybrid; "on-site", "in person", "relocation required" imply onsite. Use "unspecified" when the posting does not say."""  # noqa: E501
 
 EXTRACT_SYSTEM = """You read one job posting and copy out its facts. You never judge fit and never summarize: every fact comes with the posting's own words, copied character for character, and code checks those words against the posting. A fact the posting does not state is null or "unspecified" with an empty quote. Respond with ONLY a JSON object matching exactly:
 {
@@ -75,12 +62,12 @@ EXTRACT_REQUIRED: Schema = {
     "tech_stack": list,
 }
 
-FIT_CHECKS = """Fit checks: compare the posting with the CANDIDATE EVIDENCE below (her approved facts from jobs and projects), like a recruiter. Do not output a score; answer these checks and the score is computed from them.
-  "role_fit": "core" when the role's day to day work is the kind of work her evidence shows she has done; "adjacent" when it is a neighbouring kind of work she could step into; "other" when it is a different kind of work.
-  "must_haves": the posting's real requirements, at most 8 (skills, tools, kinds of experience; NOT years, degree, level, location, or dates). Name each "need" in at most 6 words. For each: "covered" is "yes" when a fact in her evidence directly shows it, "partly" when her evidence shows something close, "no" otherwise. Be strict: "yes" needs a specific fact, not general ability. A requirement that names alternatives ("Python or R", "Tableau or Power BI", "a degree in finance, statistics or computer science") is one need, and it is "yes" when a fact shows any one of them. What the role will teach her or expose her to ("you could be exposed to", "you will learn", "work experiences include") is never a must have; take must haves from the required and preferred qualifications.
+FIT_CHECKS = """Fit checks: compare the posting with the CANDIDATE EVIDENCE below (the candidate's approved facts from jobs and projects), like a recruiter. Do not output a score; answer these checks and the score is computed from them.
+  "role_fit": "core" when the role's day to day work is the kind of work the evidence shows the candidate has done; "adjacent" when it is a neighbouring kind of work they could step into; "other" when it is a different kind of work.
+  "must_haves": the posting's real requirements, at most 8 (skills, tools, kinds of experience; NOT years, degree, level, location, or dates). Name each "need" in at most 6 words. For each: "covered" is "yes" when a fact in the evidence directly shows it, "partly" when the evidence shows something close, "no" otherwise. Be strict: "yes" needs a specific fact, not general ability. A requirement that names alternatives ("Python or R", "Tableau or Power BI", "a degree in finance, statistics or computer science") is one need, and it is "yes" when a fact shows any one of them. What the role will teach the candidate or expose them to ("you could be exposed to", "you will learn", "work experiences include") is never a must have; take must haves from the required and preferred qualifications.
   "stretch": "research" when the role needs research publications, a PhD, or research scientist depth; "senior" when it is founding, lead, or scoped for several years of experience whatever the title says; otherwise "none".
-  "rationale": at most 20 words naming the strongest piece of her evidence for this role. No em or en dashes.
-  "could_do": whether she could do this job well, judged on ability, not on exact matches: "yes" when a hiring manager for this posting would likely interview her because work in her evidence carries over (similar tasks, tools or outcomes in another setting), "maybe" when it is a stretch she could argue, "no" otherwise. The must haves stay strict; this answer is separate.
+  "rationale": at most 20 words naming the strongest piece of the candidate's evidence for this role. No em or en dashes.
+  "could_do": whether the candidate could do this job well, judged on ability, not on exact matches: "yes" when a hiring manager for this posting would likely interview them because work in the evidence carries over (similar tasks, tools or outcomes in another setting), "maybe" when it is a stretch they could argue, "no" otherwise. The must haves stay strict; this answer is separate.
   "could_do_reason": at most 15 words naming the evidence that carries over."""  # noqa: E501
 CHECKS_JSON = """  "role_fit": string,                   // "core", "adjacent", "other"
   "must_haves": [{"need": string, "covered": string}],   // covered: "yes", "partly", "no"
@@ -89,12 +76,12 @@ CHECKS_JSON = """  "role_fit": string,                   // "core", "adjacent", 
   "could_do": string,                   // "yes", "maybe", "no"
   "could_do_reason": string"""
 
-# Edge checks: does the day to day work match the work she says she wants,
-# in her words from the profile? Asked only when the profile says. Each answer
+# Edge checks: does the day to day work match the work the candidate says
+# they want, in their words from the profile? Asked only when the profile says. Each answer
 # must quote the posting; an answer whose quote is not in the posting is not
 # trusted (see edge_from_checks).
-EDGE_CHECKS = """Edge checks: compare the posting's day to day work with WORK SHE WANTS and WORK SHE AVOIDS below. Judge the work the posting describes, never the title.
-  "edge": integer 0 to 5. 5: most of the day to day is the work she wants. 4: much of it is. 3: a real part of it is. 2: some of it. 1: little of it. 0: it is mostly the work she avoids or unrelated work.
+EDGE_CHECKS = """Edge checks: compare the posting's day to day work with WORK THE CANDIDATE WANTS and WORK THE CANDIDATE AVOIDS below. Judge the work the posting describes, never the title.
+  "edge": integer 0 to 5. 5: most of the day to day is the work the candidate wants. 4: much of it is. 3: a real part of it is. 2: some of it. 1: little of it. 0: it is mostly the work the candidate avoids or unrelated work.
   "edge_quote": the one sentence of the posting text that best supports your edge answer, copied word for word, at most 30 words. Never paraphrase.
   "coding_gate": "yes" when the posting says or clearly signals that hiring hinges on algorithm or data structure coding interviews, or that the job is mostly writing production software; "no" otherwise.
   "coding_quote": when coding_gate is "yes", the posting's own words that show it, copied word for word; otherwise ""."""  # noqa: E501
@@ -104,14 +91,48 @@ EDGE_JSON = """  "edge": number,                       // 0 to 5
   "coding_quote": string"""
 
 SCORE_CHECKS_SYSTEM = (
+    "You judge how well a job posting fits a candidate, from the candidate's evidence.\n"
+    "You are given the posting's extracted requirements, tech stack, and text when available.\n"
+    "Respond with ONLY a JSON object, no prose, matching exactly:\n{\n" + CHECKS_JSON + "\n}"
+)
+WANT_LABEL = "WORK THE CANDIDATE WANTS"
+AVOID_LABEL = "WORK THE CANDIDATE AVOIDS"
+
+# Version 1 of the fit checks wording, kept verbatim and never sent: version 2
+# changed pronouns, not meaning, so a score read with version 1 still counts
+# (score_basis renders both). Delete once no stored trace carries a version 1
+# prompt hash.
+SCORE_CHECKS_SYSTEM_V1 = (
     "You judge how well a job posting fits a candidate, from her evidence.\n"
     "You are given the posting's extracted requirements, tech stack, and text when available.\n"
     "Respond with ONLY a JSON object, no prose, matching exactly:\n{\n" + CHECKS_JSON + "\n}"
 )
+FIT_CHECKS_V1 = """Fit checks: compare the posting with the CANDIDATE EVIDENCE below (her approved facts from jobs and projects), like a recruiter. Do not output a score; answer these checks and the score is computed from them.
+  "role_fit": "core" when the role's day to day work is the kind of work her evidence shows she has done; "adjacent" when it is a neighbouring kind of work she could step into; "other" when it is a different kind of work.
+  "must_haves": the posting's real requirements, at most 8 (skills, tools, kinds of experience; NOT years, degree, level, location, or dates). Name each "need" in at most 6 words. For each: "covered" is "yes" when a fact in her evidence directly shows it, "partly" when her evidence shows something close, "no" otherwise. Be strict: "yes" needs a specific fact, not general ability. A requirement that names alternatives ("Python or R", "Tableau or Power BI", "a degree in finance, statistics or computer science") is one need, and it is "yes" when a fact shows any one of them. What the role will teach her or expose her to ("you could be exposed to", "you will learn", "work experiences include") is never a must have; take must haves from the required and preferred qualifications.
+  "stretch": "research" when the role needs research publications, a PhD, or research scientist depth; "senior" when it is founding, lead, or scoped for several years of experience whatever the title says; otherwise "none".
+  "rationale": at most 20 words naming the strongest piece of her evidence for this role. No em or en dashes.
+  "could_do": whether she could do this job well, judged on ability, not on exact matches: "yes" when a hiring manager for this posting would likely interview her because work in her evidence carries over (similar tasks, tools or outcomes in another setting), "maybe" when it is a stretch she could argue, "no" otherwise. The must haves stay strict; this answer is separate.
+  "could_do_reason": at most 15 words naming the evidence that carries over."""  # noqa: E501
+EDGE_CHECKS_V1 = """Edge checks: compare the posting's day to day work with WORK SHE WANTS and WORK SHE AVOIDS below. Judge the work the posting describes, never the title.
+  "edge": integer 0 to 5. 5: most of the day to day is the work she wants. 4: much of it is. 3: a real part of it is. 2: some of it. 1: little of it. 0: it is mostly the work she avoids or unrelated work.
+  "edge_quote": the one sentence of the posting text that best supports your edge answer, copied word for word, at most 30 words. Never paraphrase.
+  "coding_gate": "yes" when the posting says or clearly signals that hiring hinges on algorithm or data structure coding interviews, or that the job is mostly writing production software; "no" otherwise.
+  "coding_quote": when coding_gate is "yes", the posting's own words that show it, copied word for word; otherwise ""."""  # noqa: E501
+# version: (system head, fit checks, edge checks, wants label, avoids label)
+CHECKS_WORDING: dict[int, tuple[str, str, str, str, str]] = {
+    1: (SCORE_CHECKS_SYSTEM_V1, FIT_CHECKS_V1, EDGE_CHECKS_V1, "WORK SHE WANTS", "WORK SHE AVOIDS"),
+    2: (SCORE_CHECKS_SYSTEM, FIT_CHECKS, EDGE_CHECKS, WANT_LABEL, AVOID_LABEL),
+}
+
+
+def _wording(version: int | None) -> tuple[str, str, str, str, str]:
+    """The fit checks wording of ``version``, today's when None."""
+    return CHECKS_WORDING[version or PROMPTS["fit_checks"].version]
 
 
 def edge_on() -> bool:
-    """Edge checks run when the profile says what work she wants."""
+    """Edge checks run when the profile says what work the candidate wants."""
     return bool(config.candidate_targets()[0])
 
 
@@ -119,8 +140,8 @@ def checks_json() -> str:
     return CHECKS_JSON + (",\n" + EDGE_JSON if edge_on() else "")
 
 
-def score_checks_system() -> str:
-    return SCORE_CHECKS_SYSTEM.replace(CHECKS_JSON, checks_json())
+def score_checks_system(version: int | None = None) -> str:
+    return _wording(version)[0].replace(CHECKS_JSON, checks_json())
 
 
 def checks_required() -> Schema:
@@ -161,24 +182,29 @@ DEFAULT_TARGET_WORK = (
     "AI and data work (applied AI, machine learning, data science and analytics), "
     "product work, strategy and operations, and client facing technical solutions work."
 )
-TRIAGE_SYSTEM = """You triage job titles for a candidate in ONE pass. The candidate is early career (student or recent graduate), intern through entry level.
-WORK SHE WANTS: {target}
-WORK SHE AVOIDS: {avoid}
+# Used when the profile does not say what level the candidate targets.
+DEFAULT_TARGET_LEVEL = "early career (student or recent graduate), intern through entry level"
+TRIAGE_SYSTEM = """You triage job titles for a candidate in ONE pass. TARGET LEVEL: {level}.
+WORK THE CANDIDATE WANTS: {target}
+WORK THE CANDIDATE AVOIDS: {avoid}
 You receive a numbered list of job titles. Reply with ONLY a JSON object:
 {{"match": [numbers]}}
-listing every title EXCEPT the clearly wrong ones. This check only removes obvious misses; a later step reads each full posting and judges fit. So keep any title whose work could overlap with the work she wants in any way, in any industry and under any name: analyst, associate, engineer, strategist, specialist, program, rotation, and intern titles usually could. Keep client facing roles at technology companies (customer experience, solutions, deployment, forward deployed, field, value, implementation, consulting or presales roles) and analyst, planning or insights titles in any business function. When unsure, keep it. Leave out a title only when it is clearly one of these: only the work she avoids; unrelated work (recruiting, legal counsel, bookkeeping, hardware or mechanical engineering, facilities, clinical care, quota carrying sales with no technical or analytical part); or senior (Senior, Staff, Principal, Lead, Director, Head, Group, or people managers)."""  # noqa: E501
+listing every title EXCEPT the clearly wrong ones. This check only removes obvious misses; a later step reads each full posting and judges fit. So keep any title whose work could overlap with the work the candidate wants in any way, in any industry and under any name: analyst, associate, engineer, strategist, specialist, program, rotation, and intern titles usually could. Keep client facing roles at technology companies (customer experience, solutions, deployment, forward deployed, field, value, implementation, consulting or presales roles) and analyst, planning or insights titles in any business function. When unsure, keep it. Leave out a title only when it is clearly one of these: only the work the candidate avoids; unrelated work (recruiting, legal counsel, bookkeeping, hardware or mechanical engineering, facilities, clinical care, quota carrying sales with no technical or analytical part); or clearly above the target level (for an early career target: Senior, Staff, Principal, Lead, Director, Head, Group, or people managers)."""  # noqa: E501
 
 
 def triage_system(profile: dict[str, Any] | None = None) -> str:
-    """The title check prompt, built from the work she wants in her own words."""
+    """The title check prompt, built from the profile: the level the candidate
+    targets and the work they want, in their own words."""
     target, avoid = config.candidate_targets(profile)
     return TRIAGE_SYSTEM.format(
-        target=target or DEFAULT_TARGET_WORK, avoid=avoid or "nothing stated"
+        level=config.candidate_level(profile) or DEFAULT_TARGET_LEVEL,
+        target=target or DEFAULT_TARGET_WORK,
+        avoid=avoid or "nothing stated",
     )
 
 
 # Onboarding: turn excerpts of the candidate's own sources into candidate
-# facts she approves before scoring uses them (sourcer.onboard.extract).
+# facts they approve before scoring uses them (sourcer.onboard.extract).
 # Code keeps a fact only when its quote is in its excerpt.
 FACTS_SYSTEM = """You read excerpts of one person's own sources (a resume, code repositories, project folders, a LinkedIn data export) and copy out facts about their work for their job search. You never invent, embellish or guess: every fact comes with a quote copied character for character from its item, and code checks that quote against the item. Respond with ONLY a JSON object matching exactly:
 {
@@ -230,10 +256,10 @@ PARSE_CHECKS_REQUIRED: Schema = {**PARSE_REQUIRED, **CHECKS_REQUIRED}
 FIT_BANDS = {"core": (55, 40), "adjacent": (40, 35), "other": (10, 20)}
 STRETCH_PENALTY = {"none": 0, "research": 20, "senior": 15}
 NO_MUST_HAVES_COVERAGE = 0.5
-# Could do: a job she could do well whose must haves her facts match only loosely (strict
-# "yes" needs a specific fact) is not lost. Her skills score is lifted to at least what
-# neighbouring work with this coverage earns; the edge checks (the work she wants and avoids)
-# still weigh in after, so a job of the kind she avoids stays low.
+# Could do: a job the candidate could do well whose must haves their facts match only
+# loosely (strict "yes" needs a specific fact) is not lost. The skills score is lifted to at
+# least what neighbouring work with this coverage earns; the edge checks (the work they want
+# and avoid) still weigh in after, so a job of the kind they avoid stays low.
 COULD_DO_FIT = "adjacent"
 COULD_DO_COVERAGE = 0.75
 EDGE_REQUIRED: Schema = {"edge": (int, float), "edge_quote": str, "coding_gate": str}
@@ -525,16 +551,17 @@ def _skills_suffix(skills: dict[str, Any]) -> str:
 
 
 def parse_posting(client: anthropic.Anthropic, posting: dict[str, Any], usage: Usage) -> JsonResult:
-    return json_call(client, PARSE_SYSTEM, _posting_user_turn(posting), PARSE_REQUIRED, usage)
+    """Kept for callers outside this package: the posting's checked facts,
+    read by the live extraction (``extract_posting``)."""
+    return extract_posting(client, posting, usage)
 
 
-def _evidence_suffix(evidence: str) -> str:
+def _evidence_suffix(evidence: str, version: int | None = None) -> str:
+    _, fit, edge_checks, wants, avoids = _wording(version)
     target, avoid = config.candidate_targets()
     avoid = avoid or "nothing stated"
-    edge = (
-        f"\n\n{EDGE_CHECKS}\n\nWORK SHE WANTS: {target}\nWORK SHE AVOIDS: {avoid}" if target else ""
-    )
-    return "\n\n" + FIT_CHECKS + edge + "\n\nCANDIDATE EVIDENCE:\n" + evidence
+    edge = f"\n\n{edge_checks}\n\n{wants}: {target}\n{avoids}: {avoid}" if target else ""
+    return "\n\n" + fit + edge + "\n\nCANDIDATE EVIDENCE:\n" + evidence
 
 
 def _norm(text: str) -> str:
@@ -605,7 +632,7 @@ def score_from_checks(data: dict[str, Any], text: str = "") -> dict[str, Any]:
     "Core fit, covers 3 of 5 must haves, missing Kubernetes. <evidence>".
 
     With edge checks, the skills score is blended with how much of the day to
-    day is the work she wants, and a quoted coding interview gate demotes."""
+    day is the work the candidate wants, and a quoted coding interview gate demotes."""
     edge = edge_from_checks(data, text)
     fit = str(data.pop("role_fit", "other")).lower()
     stretch = str(data.pop("stretch", "none")).lower()
@@ -684,10 +711,13 @@ def _sha(text: str) -> str:
     return hashlib.sha1(text.encode()).hexdigest()[:12]  # noqa: S324  # nosec B324 identity only
 
 
-def _input_note(text: str, model: str | None, system: str = "") -> dict[str, Any]:
+def _input_note(
+    text: str, model: str | None, system: str = "", version: str | None = None
+) -> dict[str, Any]:
     """What a score was made from: enough to tell a real posting from a page
-    of noise, and which prompt and which version of her facts judged it, so a
-    score that moves can be traced to the text, the prompt, or her evidence."""
+    of noise, and which prompt (its hash and readable version) and which
+    version of the candidate's facts judged it, so a score that moves can be
+    traced to the text, the prompt, or the evidence."""
     evidence = config.scoring_evidence() or ""
     return {
         "model": model or config.MODEL,
@@ -695,6 +725,7 @@ def _input_note(text: str, model: str | None, system: str = "") -> dict[str, Any
         "sha1": _sha(text),
         "head": " ".join(text.split())[:200],
         "prompt": _sha(system.replace(evidence, "")) if system else None,
+        "prompt_version": version or score_prompt_version(),
         "evidence": _sha(evidence) if evidence else None,
         "scorer": scorer_version(),
     }
@@ -719,18 +750,43 @@ def scorer_version() -> str:
 
 
 def score_basis(skills: dict[str, Any]) -> dict[str, Any]:
-    """What a score made now would be made from, to hold a stored trace against."""
+    """What a score made now would be made from, to hold a stored trace against.
+
+    ``prompts`` holds the hash of every scoring prompt that still counts,
+    rendered with today's profile and skills: today's version and each earlier
+    version it is marked compatible with (a wording only change), so a
+    rewording does not make every stored score stale. ``versions`` holds the
+    readable versions that still count."""
     evidence = config.scoring_evidence() or ""
     stub = {"company": "", "title": "", "location": "", "url": "", "description": ""}
-    # a score from the older one-call reader still counts (no mass rescore);
-    # only its facts are not copied to a twin (current_twin)
-    prompts = [parse_score_prompt(stub, skills)[0], score_prompt(skills)]
+    fit = PROMPTS["fit_checks"]
+    prompts: list[str] = []
+    for version in (fit.version, *fit.compatible):
+        # a score from the older one-call reader still counts (no mass rescore);
+        # only its facts are not copied to a twin (current_twin)
+        prompts += [parse_score_prompt(stub, skills, version)[0], score_prompt(skills, version)]
     return {
         "model": (_scoring_model() if evidence else None) or config.MODEL,
         "evidence": _sha(evidence) if evidence else None,
         "scorer": scorer_version(),
         "prompts": {_sha(p.replace(evidence, "")) if evidence else _sha(p) for p in prompts},
+        "versions": {
+            f"{name}/{v}"
+            for name in SCORING_PROMPTS
+            for v in (PROMPTS[name].version, *PROMPTS[name].compatible)
+        },
     }
+
+
+def _prompt_stale(note: dict[str, Any], basis: dict[str, Any]) -> str | None:
+    """Why a trace's prompt no longer counts. A trace from before versions were
+    written has none, and its hash alone decides."""
+    version = note.get("prompt_version")
+    if version is not None and version not in basis.get("versions", ()):
+        return "another prompt version"
+    if note.get("prompt") not in basis["prompts"]:
+        return "older prompt or profile"
+    return None
 
 
 def stale_reason(trace: Any, basis: dict[str, Any]) -> str | None:
@@ -744,8 +800,9 @@ def stale_reason(trace: Any, basis: dict[str, Any]) -> str | None:
         return "no score trace"
     if note.get("scorer") != basis["scorer"]:
         return "older scoring arithmetic"
-    if note.get("prompt") not in basis["prompts"]:
-        return "older prompt or profile"
+    prompt = _prompt_stale(note, basis)
+    if prompt:
+        return prompt
     if note.get("evidence") != basis["evidence"]:
         return "older evidence"
     if note.get("model") != basis["model"]:
@@ -777,12 +834,18 @@ def _read(data: dict[str, Any]) -> dict[str, Any]:
 
 
 def trace_of(
-    data: dict[str, Any], text: str, model: str | None, rule: str, system: str = ""
+    data: dict[str, Any],
+    text: str,
+    model: str | None,
+    rule: str,
+    system: str = "",
+    *,
+    version: str | None = None,
 ) -> dict[str, Any]:
     """A score's trace: when, from what input, every read, which was kept, and why."""
     return {
         "at": config.utc_now().isoformat(timespec="seconds"),
-        "input": _input_note(text, model, system),
+        "input": _input_note(text, model, system, version),
         "reads": [_read(data)],
         "kept": 0,
         "rule": rule,
@@ -852,13 +915,19 @@ def _fit(data: dict[str, Any]) -> str:
     return str(data.get("rationale") or "").split(" fit", 1)[0].lower()
 
 
-def score_prompt(skills: dict[str, Any]) -> str:
-    """The fit scorer's system prompt: the checks against her evidence, or the
-    weighted skills list when evidence scoring is off."""
+def score_prompt(skills: dict[str, Any], version: int | None = None) -> str:
+    """The fit scorer's system prompt: the checks against the candidate's
+    evidence (in the fit checks wording of ``version``, today's when None), or
+    the weighted skills list when evidence scoring is off."""
     evidence = config.scoring_evidence()
     if evidence:
-        return score_checks_system() + _evidence_suffix(evidence)
+        return score_checks_system(version) + _evidence_suffix(evidence, version)
     return SCORE_SYSTEM + _skills_suffix(skills)
+
+
+def score_prompt_version() -> str:
+    """The readable version of the prompt a score made now is read with."""
+    return PROMPTS["fit_checks" if config.scoring_evidence() else "skills_score"].label
 
 
 def score_posting(
@@ -904,21 +973,24 @@ def score_posting(
         _scoring_model(),
         "one read",
         score_checks_system() + _evidence_suffix(evidence),
+        version=PROMPTS["fit_checks"].label,
     )
     return (_steadied(client, parsed, skills, usage, data) if steady else data), None
 
 
-def parse_score_prompt(posting: dict[str, Any], skills: dict[str, Any]) -> tuple[str, str]:
-    """The (system, user) pair for one parse+score call. Shared by the sync
-    path and the batch path so a batched posting is scored identically.
-    With evidence scoring on, the model answers fit checks against her
-    evidence (score_from_checks makes the number); otherwise it scores
-    against the weighted skills list."""
+def parse_score_prompt(
+    posting: dict[str, Any], skills: dict[str, Any], version: int | None = None
+) -> tuple[str, str]:
+    """The (system, user) pair for one parse+score call, used by the batch
+    path (one call per posting at batch rates). With evidence scoring on, the
+    model answers fit checks against the candidate's evidence, in the fit
+    checks wording of ``version`` (score_from_checks makes the number);
+    otherwise it scores against the weighted skills list."""
     evidence = config.scoring_evidence()
     if evidence:
         head = PARSE_SCORE_SYSTEM.split('  "score"', 1)[0]
         tail = PARSE_SCORE_SYSTEM.split("\n}", 1)[1].split("\nScoring:", 1)[0]
-        system = head + checks_json() + "\n}" + tail + _evidence_suffix(evidence)
+        system = head + checks_json() + "\n}" + tail + _evidence_suffix(evidence, version)
         return system, _posting_user_turn(posting)
     return PARSE_SCORE_SYSTEM + _skills_suffix(skills), _posting_user_turn(posting)
 
@@ -1046,10 +1118,11 @@ def parse_and_score(
         return None, err
     text = str(posting.get("description") or "")
     trace = data.get("score_trace") or trace_of(
-        data, text, config.MODEL, "one read", score_prompt(skills)
+        data, text, config.MODEL, "one read", score_prompt(skills), version=score_prompt_version()
     )
     trace["facts"] = {
         "model": config.EXTRACT_MODEL,
+        "prompt_version": PROMPTS["extract"].label,
         "checked": parsed["checked"],
         "quotes": parsed["quotes"],
     }
@@ -1113,3 +1186,51 @@ def _triage_chunk(client: anthropic.Anthropic, titles: list[str], usage: Usage) 
         if type(n) in (int, float) and math.isfinite(n) and n == int(n) and 1 <= n <= len(titles)
     }
     return sorted(out)
+
+
+# ------------------------------------------------ the prompt registry
+
+
+@dataclass(frozen=True)
+class Prompt:
+    """One prompt the package sends. ``text`` is every fixed piece of it, so a
+    test pins its hash per version: changing the text without a new version
+    fails the build. ``build`` renders it for a call. ``compatible`` names the
+    earlier versions whose stored scores still count because the change was
+    wording only; leave it empty when a change alters meaning, and every
+    stored score made with the earlier text goes stale."""
+
+    name: str
+    version: int
+    text: str
+    build: Callable[..., Any]
+    compatible: tuple[int, ...] = ()
+
+    @property
+    def label(self) -> str:
+        """The readable version written into a score trace: "fit_checks/2"."""
+        return f"{self.name}/{self.version}"
+
+
+PROMPTS: dict[str, Prompt] = {
+    p.name: p
+    for p in (
+        Prompt("triage", 2, TRIAGE_SYSTEM, triage_system),
+        Prompt("extract", 1, EXTRACT_SYSTEM, lambda: EXTRACT_SYSTEM),
+        # 2: neutral wording (the candidate, they); same checks, same meaning
+        Prompt(
+            "fit_checks",
+            2,
+            "\n".join(
+                (SCORE_CHECKS_SYSTEM, FIT_CHECKS, EDGE_CHECKS, EDGE_JSON, WANT_LABEL, AVOID_LABEL)
+            ),
+            score_prompt,
+            compatible=(1,),
+        ),
+        Prompt("skills_score", 1, SCORE_SYSTEM, score_prompt),
+        Prompt("parse_score", 1, PARSE_SCORE_SYSTEM, parse_score_prompt),
+        Prompt("facts", 1, FACTS_SYSTEM + FACTS_NOTE, lambda: FACTS_SYSTEM),
+    )
+}
+# the prompts a stored score can be read with (score_basis)
+SCORING_PROMPTS = ("fit_checks", "skills_score", "parse_score")

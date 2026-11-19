@@ -1,4 +1,5 @@
-"""Parse function tests with a mocked Anthropic client."""
+"""parse_posting, kept for callers outside the package, reads with the live
+extraction. A mocked Anthropic client stands in for the model."""
 
 import json
 from unittest.mock import MagicMock
@@ -33,15 +34,18 @@ MOCK_POSTING = {
 
 GOOD_PARSE = json.dumps(
     {
-        "title": "AI Engineer Intern",
-        "location": "New York, NY",
-        "requirements": ["Python", "LangGraph"],
-        "seniority": "intern",
-        "tech_stack": ["Python", "LangGraph"],
         "employment_type": "intern",
-        "start_date": "summer 2027",
-        "years_experience_min": None,
+        "employment_quote": "Summer 2027 internship",
+        "start_date": "Summer 2027",
+        "start_quote": "Summer 2027 internship",
         "work_mode": "onsite",
+        "work_mode_quote": "",
+        "years_experience_min": None,
+        "years_quote": "",
+        "seniority": "intern",
+        "seniority_quote": "Summer 2027 internship",
+        "requirements": ["Python", "LangGraph"],
+        "tech_stack": ["Python", "LangGraph"],
     }
 )
 
@@ -52,8 +56,12 @@ def test_parse_valid_json():
     data, err = llm.parse_posting(client, MOCK_POSTING, usage)
     assert err is None
     assert data["employment_type"] == "intern"
-    assert data["start_date"] == "summer 2027"
+    assert data["start_date"] == "Summer 2027"
     assert data["years_experience_min"] is None
+    # a fact without the posting's words is unknown, never trusted
+    assert data["work_mode"] == "unspecified" and data["checked"]["work_mode"] is False
+    sent = client.messages.create.call_args.kwargs["system"][0]["text"]
+    assert sent.startswith(llm.EXTRACT_SYSTEM)
     assert client.messages.create.call_count == 1
     assert usage.prompt_tokens == 100
 

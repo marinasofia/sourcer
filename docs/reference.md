@@ -90,6 +90,9 @@ Input files:
 - `sources.json`: gitignored, written by `sourcer init`. See [privacy](privacy.md).
 - `profile.json`: optional. Copy `profile.example.json` to enable level fit
   and the graduation availability rule. Without it, every posting fits.
+  `target_level` says in plain words what level the candidate targets (the
+  title check reads it); unset, it is early career, intern through entry
+  level. `target_work` and `avoid_work` describe the work wanted and avoided.
 
 ## Usage
 

@@ -381,29 +381,31 @@ def score_text(
         "url": "",
         "description": posting_text,
     }
-    parsed, error = llm.parse_posting(client, raw, usage)
-    if error or parsed is None:
-        return {"error": f"parse failed: {error}", "est_cost_usd": usage.est_cost_usd}
-    # Model output is a summary, not a substitute for the original eligibility text.
-    parsed["description"] = posting_text
-    if title:
-        parsed["title"] = title
-    if company:
-        parsed["company"] = company
     profile = config.load_profile()
-    parsed.update(classify(parsed, profile))
-    reason = eligible(parsed, profile, EXCLUSION_RULES).reason or None
-    if reason:
+    read: dict[str, Any] = {}  # the checked facts and the rules' answer, once read
+
+    def gate(facts: dict[str, Any]) -> str | None:
+        # the original text, never a summary, is what the rules read
+        facts.update(description=posting_text, company=raw["company"])
+        facts.update(classify(facts, profile))
+        read.update(facts=facts, reason=eligible(facts, profile, EXCLUSION_RULES).reason or None)
+        return read["reason"]
+
+    # the live path: the extraction copies the facts with quotes, the rules
+    # run on them, and only a posting that passes is scored with the fit checks
+    scored, error = llm.parse_and_score(client, raw, skills, usage, gate=gate)
+    if error or scored is None:
+        stage = "score" if read else "parse"
+        return {"error": f"{stage} failed: {error}", "est_cost_usd": usage.est_cost_usd}
+    parsed = read["facts"]
+    if read["reason"]:
         return {
             "score": 0,
             "excluded": True,
-            "exclusion_reason": reason,
+            "exclusion_reason": read["reason"],
             "parsed": parsed,
             "est_cost_usd": usage.est_cost_usd,
         }
-    scored, error = llm.score_posting(client, parsed, skills, usage)
-    if error or scored is None:
-        return {"error": f"score failed: {error}", "est_cost_usd": usage.est_cost_usd}
     return {
         "score": int(scored["score"]),
         "rationale": scored["rationale"],

@@ -1,4 +1,4 @@
-"""Edge scoring: the work she wants, in her words, with every answer quoted."""
+"""Edge scoring: the work the candidate wants, in their words, with every answer quoted."""
 
 from __future__ import annotations
 
@@ -102,15 +102,19 @@ def test_edge_checks_follow_the_profile(monkeypatch: pytest.MonkeyPatch, tmp_pat
     assert "edge_quote" not in system and "edge" not in llm.parse_score_required()
     monkeypatch.setattr(config, "load_profile", lambda path=None: WANTS)
     system, _ = llm.parse_score_prompt(POSTING, {"skills": []})
-    assert "WORK SHE WANTS: Turning business problems into AI tools" in system
+    assert "WORK THE CANDIDATE WANTS: Turning business problems into AI tools" in system
     assert '"edge_quote"' in system and "edge" in llm.parse_score_required()
 
 
-def test_the_title_check_reads_her_words_not_role_names(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_the_title_check_reads_the_profile_words_not_role_names(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     monkeypatch.setattr(config, "load_profile", lambda path=None: WANTS)
     prompt = llm.triage_system()
-    assert "WORK SHE WANTS: Turning business problems into AI tools for clients." in prompt
-    assert "WORK SHE AVOIDS: LeetCode" in prompt and '{"match": [numbers]}' in prompt
+    assert (
+        "WORK THE CANDIDATE WANTS: Turning business problems into AI tools for clients." in prompt
+    )
+    assert "WORK THE CANDIDATE AVOIDS: LeetCode" in prompt and '{"match": [numbers]}' in prompt
     monkeypatch.setattr(config, "load_profile", lambda path=None: None)
     assert llm.DEFAULT_TARGET_WORK in llm.triage_system()
 
