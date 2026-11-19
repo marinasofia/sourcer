@@ -86,7 +86,7 @@ DDL = [
         parse_failures INTEGER, score_failures INTEGER, excluded_count INTEGER,
         timing_unclear_count INTEGER, prompt_tokens INTEGER,
         completion_tokens INTEGER, est_cost_usd FLOAT, duration_s FLOAT,
-        node_metrics STRING, exclusions STRING
+        node_metrics STRING, exclusions STRING, run_id STRING
     )""",
     """CREATE TABLE IF NOT EXISTS companies (
         id INTEGER AUTOINCREMENT,
@@ -110,6 +110,7 @@ DDL = [
         id INTEGER AUTOINCREMENT,
         application_id INTEGER, at STRING, kind STRING, detail STRING
     )""",
+    "ALTER TABLE run_logs ADD COLUMN IF NOT EXISTS run_id STRING",
     "ALTER TABLE companies ADD COLUMN IF NOT EXISTS probe_status STRING",
     "ALTER TABLE companies ADD COLUMN IF NOT EXISTS probe_urls STRING",
     "ALTER TABLE companies ADD COLUMN IF NOT EXISTS probed_at STRING",
@@ -321,8 +322,8 @@ def insert_run_log(conn: Conn, stats: dict[str, Any], run_ts: str | None = None)
            (run_ts, companies_covered, postings_seen, prefiltered_out, new_postings,
             dedupe_count, parse_failures, score_failures, excluded_count,
             timing_unclear_count, prompt_tokens, completion_tokens, est_cost_usd,
-            duration_s, node_metrics, exclusions)
-           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+            duration_s, node_metrics, exclusions, run_id)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
         (
             run_ts or now_iso(),
             stats.get("companies_covered"),
@@ -340,6 +341,7 @@ def insert_run_log(conn: Conn, stats: dict[str, Any], run_ts: str | None = None)
             stats.get("duration_s"),
             _as_json(stats.get("node_metrics", {})),
             _as_json(stats.get("exclusions", [])),
+            stats.get("run_id"),
         ),
     )
     conn.commit()

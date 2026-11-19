@@ -10,7 +10,7 @@ from typing import Any
 
 from dotenv import load_dotenv
 
-from . import __version__, config, db, llm, log, progress, rescreen, score_listings
+from . import __version__, config, db, llm, log, progress, rescreen, score_listings, trace
 from .digest import render_digest
 from .onboard import store as onboard_store
 from .pipeline.graph import build_graph
@@ -82,6 +82,7 @@ def run(state: State | None = None) -> State:
     progress.stage("save", status="running")
     _after_collect(final)
     final["stats"]["duration_s"] = round(time.time() - t0, 1)
+    final["stats"]["run_id"] = trace.RUN_ID  # the same key as this run's posting events
     db.insert_run_log(final["conn"], final["stats"])
     progress.stage("save", done=final["stats"].get("new_postings"), status="done")
     return final

@@ -15,6 +15,7 @@ are written straight away, keyed by their address, and pruned after
 from __future__ import annotations
 
 import json
+import os
 import subprocess  # nosec B404  fixed argv, no shell
 import uuid
 from datetime import timedelta
@@ -45,7 +46,9 @@ CREATE INDEX IF NOT EXISTS posting_events_posting ON posting_events(posting_id);
 CREATE INDEX IF NOT EXISTS posting_events_url ON posting_events(url);
 """
 
-RUN_ID = uuid.uuid4().hex[:12]  # one search run, one process
+# one search run, one process; a scheduler that starts the process passes its own run id in
+# SOURCER_RUN_ID so these events share a key with its job and step records
+RUN_ID = os.environ.get("SOURCER_RUN_ID") or uuid.uuid4().hex[:12]
 
 
 @cache
