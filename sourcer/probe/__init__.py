@@ -1,7 +1,9 @@
 """Discover a company's applicant tracking system and careers page.
 
-The probe checks one URL per second, follows a fixed platform order, and stops
-at the first HTTP 200 page that names the company and lists at least one job.
+The probe checks one URL per second on each host, follows a fixed platform
+order, and stops at the first HTTP 200 page that names the company and lists at
+least one job. Several companies are probed at once, so different hosts are read
+in parallel while no single host gets more than one request a second.
 When no guessed slug works, the company's own careers page is read for a link
 to a hosted board (Greenhouse, Lever, Ashby, Workday and the rest): a link on
 the company's own site is the strongest proof the board is theirs.
@@ -13,8 +15,11 @@ import argparse
 import json
 import re
 import sys
+import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
 from typing import Any, Protocol, cast
 from urllib.parse import urljoin, urlparse
 
@@ -25,7 +30,13 @@ from .. import db
 from ..net import SafeSession
 
 REQUEST_INTERVAL_SECONDS = 1.0
-REQUEST_TIMEOUT_SECONDS = 20
+# a board answers in a second or two; a page still silent after 10 is not one to wait for
+REQUEST_TIMEOUT_SECONDS = 10
+# companies probed at once; each host still gets at most one request a second
+PROBE_WORKERS = 8
+# a company with no board found is tried again after RETRY_DAYS, at most MAX_ATTEMPTS times
+RETRY_DAYS = 30
+MAX_ATTEMPTS = 3
 USER_AGENT = {"User-Agent": "Sourcer ATS probe/0.2 (+https://github.com/marinasofia/sourcer)"}
 SUFFIXES = (
     "incorporated",
@@ -130,6 +141,9 @@ class ProbeResult:
 
 
 class RateLimiter:
+    """At most one request per ``interval`` to each host; different hosts do not
+    wait for each other. Safe to share between threads."""
+
     def __init__(
         self,
         interval: float = REQUEST_INTERVAL_SECONDS,
@@ -139,16 +153,16 @@ class RateLimiter:
         self.interval = interval
         self.clock = clock
         self.sleep = sleep
-        self.last_request: float | None = None
+        self.next_at: dict[str, float] = {}
+        self.lock = threading.Lock()
 
-    def wait(self) -> None:
-        now = self.clock()
-        if self.last_request is not None:
-            remaining = self.interval - (now - self.last_request)
-            if remaining > 0:
-                self.sleep(remaining)
-                now = self.clock()
-        self.last_request = now
+    def wait(self, host: str = "") -> None:
+        with self.lock:  # reserve the host's next slot, then sleep outside the lock
+            now = self.clock()
+            start = max(now, self.next_at.get(host, now))
+            self.next_at[host] = start + self.interval
+        if start > now:
+            self.sleep(start - now)
 
 
 def _compact(value: str) -> str:
@@ -308,7 +322,7 @@ def _verification_has_openings(response: Response, ats_type: str) -> bool:
 
 
 def _request(requester: Requester, limiter: RateLimiter, url: str) -> Response | None:
-    limiter.wait()
+    limiter.wait((urlparse(url).hostname or "").lower())
     try:
         return requester.get(
             url,
@@ -439,19 +453,74 @@ def probe_target(
     )
 
 
-def probe_pending(conn: db.Connection, limit: int = 25) -> list[ProbeResult]:
+def attempts(row: dict[str, Any]) -> int:
+    """Probes run on a company so far. Rows probed before the count existed count once."""
+    count = int(row.get("probe_attempts") or 0)
+    return max(count, 1) if row.get("probed_at") else count
+
+
+def _when(stamp: str) -> datetime | None:
+    try:
+        moment = datetime.fromisoformat(stamp)
+    except (TypeError, ValueError):
+        return None
+    return moment if moment.tzinfo else moment.replace(tzinfo=UTC)
+
+
+def due(row: dict[str, Any], now: datetime) -> bool:
+    """A company with no board is due when never probed, or when its last probe
+    is RETRY_DAYS old and it has had fewer than MAX_ATTEMPTS."""
+    if row.get("ats_type"):
+        return False
+    count = attempts(row)
+    if count == 0:
+        return True
+    last = _when(str(row.get("probed_at") or ""))
+    return count < MAX_ATTEMPTS and (last is None or now - last >= timedelta(days=RETRY_DAYS))
+
+
+def pending(rows: list[dict[str, Any]], now: datetime) -> list[dict[str, Any]]:
+    """Due companies, best odds first: never probed before retried, a known
+    website (its careers link is the surest signal) before a name alone, then
+    the oldest probe."""
+    return sorted(
+        (row for row in rows if due(row, now)),
+        key=lambda row: (attempts(row) > 0, not row.get("domain"), row.get("probed_at") or ""),
+    )
+
+
+def probe_pending(
+    conn: db.Connection,
+    limit: int = 25,
+    *,
+    minutes: float | None = None,
+    workers: int = PROBE_WORKERS,
+    now: datetime | None = None,
+    clock: Any = time.monotonic,
+    probe: Any = None,
+) -> list[ProbeResult]:
+    """Probe up to ``limit`` due companies, ``workers`` at a time. With
+    ``minutes``, no new company starts after that budget, so the job ends on
+    time whatever the limit. Results are saved from this thread only."""
     if limit < 0:
         raise ValueError("probe limit cannot be negative")
-    rows = sorted(
-        (row for row in db.list_companies(conn) if not row.get("ats_type")),
-        key=lambda row: row.get("probed_at") or "",
-    )
+    rows = pending(db.list_companies(conn), now or datetime.now(UTC))[:limit]
+    deadline = clock() + minutes * 60 if minutes else None
     limiter = RateLimiter()
+    run = probe or probe_target
+
+    def one(row: dict[str, Any]) -> ProbeResult | None:
+        if deadline is not None and clock() >= deadline:
+            return None
+        return cast(ProbeResult, run(build_target(row["name"], row.get("domain")), limiter=limiter))
+
     results = []
-    for row in rows[:limit]:
-        result = probe_target(build_target(row["name"], row.get("domain")), limiter=limiter)
-        db.save_company_probe(conn, result.__dict__)
-        results.append(result)
+    with ThreadPoolExecutor(max_workers=max(1, workers)) as pool:
+        for result in pool.map(one, rows):
+            if result is None:
+                continue
+            db.save_company_probe(conn, result.__dict__)
+            results.append(result)
     return results
 
 

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from datetime import UTC, datetime
 from typing import Any
 from unittest.mock import MagicMock, patch
 
@@ -357,3 +358,89 @@ def test_a_known_site_is_read_before_guessing_board_names() -> None:
     assert (result.ats_type, result.ats_slug) == ("lever", "testco-hq")
     assert not any("ashbyhq" in url or "greenhouse" in url for url in result.urls_tried)
     assert not build_target("TestCo").known_site
+
+
+def test_the_rate_limit_is_per_host_so_other_hosts_do_not_wait() -> None:
+    now = [0.0]
+    sleeps: list[float] = []
+    limiter = RateLimiter(interval=1.0, clock=lambda: now[0], sleep=sleeps.append)
+    limiter.wait("jobs.lever.co")
+    limiter.wait("jobs.ashbyhq.com")  # another host: no wait
+    limiter.wait("jobs.lever.co")  # same host again within a second: waits
+    assert sleeps == [1.0]
+
+
+def _unresolved(name: str, attempts: int, probed_at: str | None, domain: str | None = None):
+    return {
+        "name": name,
+        "domain": domain,
+        "ats_type": None,
+        "probe_attempts": attempts,
+        "probed_at": probed_at,
+    }
+
+
+def test_a_failed_company_waits_a_month_and_stops_after_three_tries() -> None:
+    now = datetime(2026, 11, 18, tzinfo=UTC)
+    rows = [
+        _unresolved("Fresh", 0, None),
+        _unresolved("TriedLastWeek", 1, "2026-11-11T07:00:00+00:00"),
+        _unresolved("TriedTwoMonthsAgo", 1, "2026-09-18T07:00:00+00:00"),
+        _unresolved("TriedThreeTimes", 3, "2026-08-01T07:00:00+00:00"),
+        _unresolved("OldRowNoCount", 0, "2026-09-01T07:00:00+00:00"),
+        {"name": "HasBoard", "ats_type": "lever", "probe_attempts": 0, "probed_at": None},
+    ]
+    assert [row["name"] for row in probe.pending(rows, now)] == [
+        "Fresh",
+        "OldRowNoCount",
+        "TriedTwoMonthsAgo",
+    ]
+
+
+def test_never_probed_companies_with_a_website_go_first() -> None:
+    now = datetime(2026, 11, 18, tzinfo=UTC)
+    rows = [
+        _unresolved("Retry", 1, "2026-09-01T07:00:00+00:00", "retry.example"),
+        _unresolved("NameOnly", 0, None),
+        _unresolved("WithSite", 0, None, "withsite.example"),
+    ]
+    assert [row["name"] for row in probe.pending(rows, now)] == ["WithSite", "NameOnly", "Retry"]
+
+
+def test_probe_pending_saves_each_result_and_counts_attempts(tmp_db) -> None:
+    for name in ("AlphaCo", "BetaCo"):
+        sqlitedb.save_company_probe(tmp_db, ProbeResult(name, None, None, None, None, ()).__dict__)
+    tmp_db.execute("UPDATE companies SET probed_at = '2026-01-01T00:00:00+00:00'")
+
+    def fake(target: ProbeTarget, limiter: Any) -> ProbeResult:
+        hit = target.name == "AlphaCo"
+        return ProbeResult(
+            target.name, None, "lever" if hit else None, "alpha" if hit else None, None, ("u",)
+        )
+
+    results = probe.probe_pending(
+        tmp_db, 10, now=datetime(2026, 11, 18, tzinfo=UTC), probe=fake, workers=2
+    )
+    assert sorted(r.name for r in results) == ["AlphaCo", "BetaCo"]
+    rows = {row["name"]: row for row in sqlitedb.list_companies(tmp_db)}
+    assert rows["AlphaCo"]["ats_type"] == "lever"
+    assert rows["BetaCo"]["probe_attempts"] == 2
+
+
+def test_no_company_starts_after_the_time_budget(tmp_db) -> None:
+    for name in ("AlphaCo", "BetaCo", "GammaCo"):
+        tmp_db.execute(
+            "INSERT INTO companies (name, added_at) VALUES (?, '2026-11-01T00:00:00+00:00')",
+            (name,),
+        )
+    tmp_db.commit()
+    now = [0.0]
+
+    def fake(target: ProbeTarget, limiter: Any) -> ProbeResult:
+        now[0] += 31 * 60  # each probe takes 31 minutes
+        return ProbeResult(target.name, None, None, None, None, ())
+
+    results = probe.probe_pending(
+        tmp_db, 10, minutes=60, clock=lambda: now[0], probe=fake, workers=1
+    )
+    assert len(results) == 2  # the third would start after the hour

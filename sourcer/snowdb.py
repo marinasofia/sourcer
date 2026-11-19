@@ -94,7 +94,7 @@ DDL = [
         source STRING, added_at STRING, quality_signals STRING,
         quality_status STRING DEFAULT 'pending', last_seen_at STRING,
         submit_enabled BOOLEAN DEFAULT FALSE, probe_status STRING,
-        probe_urls STRING, probed_at STRING
+        probe_urls STRING, probed_at STRING, probe_attempts INTEGER DEFAULT 0
     )""",
     """CREATE TABLE IF NOT EXISTS applications (
         id INTEGER AUTOINCREMENT,
@@ -113,6 +113,7 @@ DDL = [
     "ALTER TABLE companies ADD COLUMN IF NOT EXISTS probe_status STRING",
     "ALTER TABLE companies ADD COLUMN IF NOT EXISTS probe_urls STRING",
     "ALTER TABLE companies ADD COLUMN IF NOT EXISTS probed_at STRING",
+    "ALTER TABLE companies ADD COLUMN IF NOT EXISTS probe_attempts INTEGER DEFAULT 0",
     "ALTER TABLE companies ADD COLUMN IF NOT EXISTS quality_status STRING DEFAULT 'pending'",
     "ALTER TABLE companies ADD COLUMN IF NOT EXISTS last_seen_at STRING",
     "ALTER TABLE postings ADD COLUMN IF NOT EXISTS telegram_notified BOOLEAN DEFAULT FALSE",
@@ -468,11 +469,12 @@ def save_company_probe(conn: Conn, result: dict[str, Any]) -> None:
         """MERGE INTO companies t USING (SELECT ? AS name) s ON t.name = s.name
            WHEN MATCHED THEN UPDATE SET
              domain=COALESCE(?, t.domain), ats_type=?, ats_slug=?,
-             probe_status=?, probe_urls=?, probed_at=?
+             probe_status=?, probe_urls=?, probed_at=?,
+             probe_attempts=COALESCE(t.probe_attempts, 0) + 1
            WHEN NOT MATCHED THEN INSERT
              (name, domain, ats_type, ats_slug, source, added_at, quality_signals,
-              submit_enabled, probe_status, probe_urls, probed_at)
-           VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
+              submit_enabled, probe_status, probe_urls, probed_at, probe_attempts)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,1)""",
         (
             name,
             domain,

@@ -72,7 +72,8 @@ CREATE TABLE IF NOT EXISTS companies (
     submit_enabled INTEGER NOT NULL DEFAULT 0,
     probe_status TEXT,
     probe_urls TEXT,
-    probed_at TEXT
+    probed_at TEXT,
+    probe_attempts INTEGER NOT NULL DEFAULT 0
 );
 CREATE TABLE IF NOT EXISTS feedback (
     posting_id INTEGER PRIMARY KEY,
@@ -137,6 +138,7 @@ COMPANY_MIGRATIONS: tuple[tuple[str, str], ...] = (
     ("probe_status", "TEXT"),
     ("probe_urls", "TEXT"),
     ("probed_at", "TEXT"),
+    ("probe_attempts", "INTEGER NOT NULL DEFAULT 0"),
 )
 
 STATUSES = ("new", "shortlist", "applied", "interview", "offer", "rejected", "archived")
@@ -635,15 +637,16 @@ def save_company_probe(conn: sqlite3.Connection, result: dict[str, Any]) -> None
     conn.execute(
         """INSERT INTO companies
            (name, domain, ats_type, ats_slug, source, added_at, quality_signals,
-            submit_enabled, probe_status, probe_urls, probed_at)
-           VALUES (?,?,?,?,?,?,?,?,?,?,?)
+            submit_enabled, probe_status, probe_urls, probed_at, probe_attempts)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,1)
            ON CONFLICT(name) DO UPDATE SET
              domain=COALESCE(excluded.domain, companies.domain),
              ats_type=excluded.ats_type,
              ats_slug=excluded.ats_slug,
              probe_status=excluded.probe_status,
              probe_urls=excluded.probe_urls,
-             probed_at=excluded.probed_at""",
+             probed_at=excluded.probed_at,
+             probe_attempts=COALESCE(companies.probe_attempts, 0) + 1""",
         (
             name,
             domain,
