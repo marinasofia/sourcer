@@ -56,7 +56,8 @@ CREATE TABLE IF NOT EXISTS run_logs (
     est_cost_usd REAL,
     duration_s REAL,
     node_metrics TEXT,
-    exclusions TEXT
+    exclusions TEXT,
+    run_id TEXT
 );
 CREATE TABLE IF NOT EXISTS companies (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -205,6 +206,8 @@ def _migrate(conn: sqlite3.Connection) -> None:
     for col, decl in MIGRATIONS:
         if col not in have:
             conn.execute(f"ALTER TABLE postings ADD COLUMN {col} {decl}")
+    if "run_id" not in {r["name"] for r in conn.execute("PRAGMA table_info(run_logs)")}:
+        conn.execute("ALTER TABLE run_logs ADD COLUMN run_id TEXT")
     company_columns = {r["name"] for r in conn.execute("PRAGMA table_info(companies)")}
     for col, decl in COMPANY_MIGRATIONS:
         if col not in company_columns:
@@ -472,8 +475,8 @@ def insert_run_log(
            (run_ts, companies_covered, postings_seen, prefiltered_out, new_postings,
             dedupe_count, parse_failures, score_failures, excluded_count,
             timing_unclear_count, prompt_tokens, completion_tokens, est_cost_usd,
-            duration_s, node_metrics, exclusions)
-           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+            duration_s, node_metrics, exclusions, run_id)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
         (
             run_ts or now_iso(),
             stats.get("companies_covered"),
@@ -491,6 +494,7 @@ def insert_run_log(
             stats.get("duration_s"),
             _as_json(stats.get("node_metrics", {})),
             _as_json(stats.get("exclusions", [])),
+            stats.get("run_id"),
         ),
     )
     conn.commit()

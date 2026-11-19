@@ -3,11 +3,12 @@ event; dropped postings are kept under their address, then pruned."""
 
 from __future__ import annotations
 
+import importlib
 from collections import Counter
 from typing import Any
 from unittest.mock import patch
 
-from sourcer import db, sources, trace
+from sourcer import db, sources, sqlitedb, trace
 
 
 def test_a_saved_posting_keeps_its_whole_story(tmp_path: Any) -> None:
@@ -58,3 +59,17 @@ def test_fetch_company_hands_back_what_each_gate_dropped() -> None:
         )
     assert [p["url"] for p in kept] == ["u1"] and n == 1
     assert [(p["url"], v) for p, v in dropped] == [("u2", "location")]
+
+
+def test_a_scheduler_run_id_from_the_environment_is_used(monkeypatch) -> None:
+    monkeypatch.setenv("SOURCER_RUN_ID", "discover-20261118-0700-3f9a")
+    try:
+        assert importlib.reload(trace).RUN_ID == "discover-20261118-0700-3f9a"
+    finally:
+        monkeypatch.delenv("SOURCER_RUN_ID")
+        importlib.reload(trace)
+
+
+def test_the_run_log_keeps_its_run_id(tmp_db) -> None:
+    sqlitedb.insert_run_log(tmp_db, {"run_id": "r-1", "new_postings": 3})
+    assert tmp_db.execute("SELECT run_id FROM run_logs").fetchone()[0] == "r-1"

@@ -94,7 +94,7 @@ def test_run_log_insert_and_commit():
     snowdb.insert_run_log(conn, {"companies_covered": 2, "est_cost_usd": 0.01})
     verb, _sql, params = store["executed"][-1]
     assert verb == "INSERT"
-    assert len(params) == 16
+    assert len(params) == 17
     assert store["commits"] == 1
 
 
