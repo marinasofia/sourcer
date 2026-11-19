@@ -94,7 +94,8 @@ DDL = [
         source STRING, added_at STRING, quality_signals STRING,
         quality_status STRING DEFAULT 'pending', last_seen_at STRING,
         submit_enabled BOOLEAN DEFAULT FALSE, probe_status STRING,
-        probe_urls STRING, probed_at STRING, probe_attempts INTEGER DEFAULT 0
+        probe_urls STRING, probed_at STRING, probe_attempts INTEGER DEFAULT 0,
+        domain_checked_at STRING, domain_attempts INTEGER DEFAULT 0
     )""",
     """CREATE TABLE IF NOT EXISTS applications (
         id INTEGER AUTOINCREMENT,
@@ -117,6 +118,8 @@ DDL = [
     "ALTER TABLE companies ADD COLUMN IF NOT EXISTS probe_attempts INTEGER DEFAULT 0",
     "ALTER TABLE companies ADD COLUMN IF NOT EXISTS quality_status STRING DEFAULT 'pending'",
     "ALTER TABLE companies ADD COLUMN IF NOT EXISTS last_seen_at STRING",
+    "ALTER TABLE companies ADD COLUMN IF NOT EXISTS domain_checked_at STRING",
+    "ALTER TABLE companies ADD COLUMN IF NOT EXISTS domain_attempts INTEGER DEFAULT 0",
     "ALTER TABLE postings ADD COLUMN IF NOT EXISTS telegram_notified BOOLEAN DEFAULT FALSE",
     "ALTER TABLE postings ADD COLUMN IF NOT EXISTS description STRING",
 ]
@@ -430,7 +433,7 @@ def save_discovered_companies(conn: Conn, candidates: Sequence[dict[str, Any]]) 
             """MERGE INTO companies t
                USING (SELECT ? AS name) s ON lower(trim(t.name))=lower(trim(s.name))
                WHEN MATCHED THEN UPDATE SET
-                 domain=COALESCE(?, t.domain), source=?, quality_signals=?,
+                 domain=COALESCE(NULLIF(t.domain, ''), ?), source=?, quality_signals=?,
                  quality_status=CASE WHEN t.quality_status='passed' THEN 'passed' ELSE ? END,
                  last_seen_at=?
                WHEN NOT MATCHED THEN INSERT
@@ -456,6 +459,17 @@ def save_discovered_companies(conn: Conn, candidates: Sequence[dict[str, Any]]) 
         )
     conn.commit()
     return int(_count_companies(conn) - before)
+
+
+def save_company_domain(conn: Conn, name: str, domain: str | None) -> None:
+    """Record one website lookup; a stored domain is never replaced."""
+    conn.execute(
+        """UPDATE companies SET domain=COALESCE(NULLIF(domain, ''), ?),
+           domain_checked_at=?, domain_attempts=COALESCE(domain_attempts, 0) + 1
+           WHERE name=?""",
+        (domain, now_iso(), name),
+    )
+    conn.commit()
 
 
 def save_company_probe(conn: Conn, result: dict[str, Any]) -> None:

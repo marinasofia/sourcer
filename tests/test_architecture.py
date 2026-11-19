@@ -94,6 +94,7 @@ LAYERS: dict[str, int] = {
     "discovery.models": 3,
     "discovery.service": 3,
     "discovery.simplify": 3,
+    "discovery.websites": 3,
     "discovery.yc": 3,
     "probe": 3,
     "orchestrator": 3,
