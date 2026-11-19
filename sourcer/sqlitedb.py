@@ -74,7 +74,9 @@ CREATE TABLE IF NOT EXISTS companies (
     probe_status TEXT,
     probe_urls TEXT,
     probed_at TEXT,
-    probe_attempts INTEGER NOT NULL DEFAULT 0
+    probe_attempts INTEGER NOT NULL DEFAULT 0,
+    domain_checked_at TEXT,
+    domain_attempts INTEGER NOT NULL DEFAULT 0
 );
 CREATE TABLE IF NOT EXISTS feedback (
     posting_id INTEGER PRIMARY KEY,
@@ -140,6 +142,8 @@ COMPANY_MIGRATIONS: tuple[tuple[str, str], ...] = (
     ("probe_urls", "TEXT"),
     ("probed_at", "TEXT"),
     ("probe_attempts", "INTEGER NOT NULL DEFAULT 0"),
+    ("domain_checked_at", "TEXT"),
+    ("domain_attempts", "INTEGER NOT NULL DEFAULT 0"),
 )
 
 STATUSES = ("new", "shortlist", "applied", "interview", "offer", "rejected", "archived")
@@ -600,7 +604,7 @@ def save_discovered_companies(
             status = "passed"
         conn.execute(
             """UPDATE companies SET
-               domain=COALESCE(?, domain), source=?, quality_signals=?,
+               domain=COALESCE(NULLIF(domain, ''), ?), source=?, quality_signals=?,
                quality_status=?, last_seen_at=? WHERE id=?""",
             (
                 domain,
@@ -628,6 +632,18 @@ def _merge_signals(previous: dict[str, Any], current: dict[str, Any]) -> dict[st
     if counts:
         merged["employee_count"] = max(counts)
     return merged
+
+
+def save_company_domain(conn: sqlite3.Connection, name: str, domain: str | None) -> None:
+    """Record one website lookup. A found domain fills an empty one only; a
+    stored domain is never replaced."""
+    conn.execute(
+        """UPDATE companies SET domain=COALESCE(NULLIF(domain, ''), ?),
+           domain_checked_at=?, domain_attempts=COALESCE(domain_attempts, 0) + 1
+           WHERE name=?""",
+        (domain, now_iso(), name),
+    )
+    conn.commit()
 
 
 def save_company_probe(conn: sqlite3.Connection, result: dict[str, Any]) -> None:

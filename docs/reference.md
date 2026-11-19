@@ -122,6 +122,7 @@ python -m sourcer.apply.verify --limit 600   # archive dead links
 sourcer probe "Company Name"                 # discover and save its ATS board
 sourcer probe --all                          # probe companies whose ATS type is empty
 sourcer discover                             # weekly company discovery and bounded ATS probing
+sourcer discover --backfill-domains 200 --backfill-minutes 10  # also find missing websites first
 sourcer collect                              # daily structured collection and scoring
 sourcer orchestrate daily                    # locked daily run plus Telegram digest
 sourcer orchestrate weekly --probe-limit 25  # discovery, probe, collect, and weekly report

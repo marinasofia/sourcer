@@ -8,6 +8,7 @@ import sys
 from .. import db, log
 from ..probe import probe_pending
 from .service import FETCHERS, discover
+from .websites import backfill_domains
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -35,11 +36,28 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
         help="time budget for probing; no new company starts after it",
     )
+    parser.add_argument(
+        "--backfill-domains",
+        type=int,
+        default=0,
+        metavar="N",
+        help="look up websites for up to N companies stored without one, before probing",
+    )
+    parser.add_argument(
+        "--backfill-minutes",
+        type=float,
+        default=None,
+        help="time budget for the website lookup; no new company starts after it",
+    )
     args = parser.parse_args(sys.argv[1:] if argv is None else argv)
     if args.probe_limit < 0:
         parser.error("--probe-limit cannot be negative")
     if args.probe_minutes is not None and args.probe_minutes <= 0:
         parser.error("--probe-minutes must be positive")
+    if args.backfill_domains < 0:
+        parser.error("--backfill-domains cannot be negative")
+    if args.backfill_minutes is not None and args.backfill_minutes <= 0:
+        parser.error("--backfill-minutes must be positive")
     log.configure()
     conn = db.connect()
     result = discover(conn, args.source)
@@ -49,6 +67,10 @@ def main(argv: list[str] | None = None) -> int:
     )
     for source, count in result.source_counts.items():
         print(f"{source}: {count}")
+    if args.backfill_domains:
+        found = backfill_domains(conn, args.backfill_domains, minutes=args.backfill_minutes)
+        named = sum(item.domain is not None for item in found)
+        print(f"website backfill: {named}/{len(found)} found")
     if not args.no_probe:
         results = probe_pending(conn, args.probe_limit, minutes=args.probe_minutes)
         resolved = sum(result.ats_type is not None for result in results)

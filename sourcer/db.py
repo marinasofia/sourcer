@@ -79,6 +79,8 @@ class Backend(Protocol):
 
     def save_company_probe(self, conn: Any, result: dict[str, Any]) -> None: ...
 
+    def save_company_domain(self, conn: Any, name: str, domain: str | None) -> None: ...
+
     def save_discovered_companies(self, conn: Any, candidates: Sequence[dict[str, Any]]) -> int: ...
 
     def insert_application(self, conn: Any, app: dict[str, Any]) -> int: ...
@@ -117,6 +119,7 @@ find_scored_twin = _impl.find_scored_twin
 upsert_companies = _impl.upsert_companies
 list_companies = _impl.list_companies
 save_company_probe = _impl.save_company_probe
+save_company_domain = _impl.save_company_domain
 save_discovered_companies = _impl.save_discovered_companies
 record_feedback = _impl.record_feedback
 list_feedback = _impl.list_feedback
