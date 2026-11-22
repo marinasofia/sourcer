@@ -98,10 +98,11 @@ def load(path: Path) -> tuple[list[Posting], list[Posting], dict[str, Any]]:
         raise ValueError("fetch file has no posting lists")
     if len(postings) + len(unsure) > MAX_POSTINGS:
         raise ValueError("fetch file has too many postings")
-    stats = body.get("stats") if isinstance(body.get("stats"), dict) else {}
+    given = body.get("stats")
+    raw: dict[Any, Any] = given if isinstance(given, dict) else {}
     keep = [c for c in (clean_posting(p) for p in postings) if c is not None]
     maybe = [c for c in (clean_posting(p) for p in unsure) if c is not None]
-    stats = {k: v for k, v in stats.items() if isinstance(k, str)}
+    stats: dict[str, Any] = {k: v for k, v in raw.items() if isinstance(k, str)}
     stats["fetch_rejected"] = len(postings) + len(unsure) - len(keep) - len(maybe)
     return keep, maybe, stats
 
@@ -119,7 +120,8 @@ def read(path: Path, state: State | None = None) -> State:
     progress.stage("triage", done=len(unsure), status="done")
     stats["triaged_in"] = triaged_in
     stats["prefiltered_out"] = int(stats.get("prefiltered_out") or 0) + len(unsure) - triaged_in
-    reasons = stats.get("drop_reasons") if isinstance(stats.get("drop_reasons"), dict) else {}
+    found = stats.get("drop_reasons")
+    reasons: dict[str, Any] = found if isinstance(found, dict) else {}
     reasons["triage_rejected"] = len(unsure) - triaged_in
     stats["drop_reasons"] = reasons
     state["postings"] = postings
