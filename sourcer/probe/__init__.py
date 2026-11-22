@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 import re
 import sys
 import threading
@@ -28,6 +29,8 @@ from bs4 import BeautifulSoup
 
 from .. import db
 from ..net import SafeSession
+
+log = logging.getLogger(__name__)
 
 REQUEST_INTERVAL_SECONDS = 1.0
 # a board answers in a second or two; a page still silent after 10 is not one to wait for
@@ -519,7 +522,13 @@ def probe_pending(
     def one(row: dict[str, Any]) -> ProbeResult | None:
         if deadline is not None and clock() >= deadline:
             return None
-        return cast(ProbeResult, run(build_target(row["name"], row.get("domain")), limiter=limiter))
+        try:
+            return cast(
+                ProbeResult, run(build_target(row["name"], row.get("domain")), limiter=limiter)
+            )
+        except Exception as e:
+            log.warning("probe failed for %s: %s: %s", row.get("name"), type(e).__name__, e)
+            return None
 
     results = []
     with ThreadPoolExecutor(max_workers=max(1, workers)) as pool:
