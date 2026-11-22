@@ -27,6 +27,8 @@ class State(TypedDict, total=False):
     usage: llm.Usage
     conn: db.Connection
     read_posting: Callable[[str], str | None]  # url -> page text, for postings collected bare
+    defer_triage: bool  # fetch stage of a split run: keep unsure titles for the read stage
+    unsure: list[Posting]  # titles the fetch stage could not check without a model
 
 
 def _timed(stats: dict[str, Any], node: str, t0: float, **extra: Any) -> None:

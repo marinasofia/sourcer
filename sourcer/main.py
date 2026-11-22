@@ -17,7 +17,7 @@ from .pipeline.graph import build_graph
 from .pipeline.state import State
 
 
-def build_state(client: Any | None = None) -> State:
+def build_state(client: Any = None) -> State:
     """Initial pipeline state from the configured inputs.
 
     ``client`` is injectable for tests and for cost-free runs; the default
@@ -25,6 +25,8 @@ def build_state(client: Any | None = None) -> State:
     """
     if client is None and config.COST_CAP_USD > 0:
         client = llm.get_client()
+    if client is False:  # the fetch stage of a split run: never a model client
+        client = None
     configured_companies = json.loads(config.COMPANIES_PATH.read_text())
     conn = db.connect()
     db.upsert_companies(conn, configured_companies)
@@ -88,7 +90,27 @@ def run(state: State | None = None) -> State:
     return final
 
 
-def main(argv: list[str] | None = None) -> int:
+def _stage(args_in: list[str]) -> int:
+    """``fetch --out FILE`` or ``read --in FILE``: the halves of a split run (sourcer.stages)."""
+    from pathlib import Path  # noqa: PLC0415
+
+    from . import stages  # noqa: PLC0415
+
+    ap = argparse.ArgumentParser(prog=f"sourcer {args_in[0]}")
+    ap.add_argument("--out" if args_in[0] == "fetch" else "--in", dest="path", required=True)
+    args = ap.parse_args(args_in[1:])
+    load_dotenv()
+    log.configure()
+    if args_in[0] == "fetch":
+        body = stages.fetch(Path(args.path))
+        print(json.dumps({"fetched": len(body["postings"]), "unsure": len(body["unsure"])}))
+        return 0
+    final = stages.read(Path(args.path))
+    print(json.dumps({"cadence": "daily", "stats": final["stats"]}, indent=2, default=str))
+    return 0
+
+
+def main(argv: list[str] | None = None) -> int:  # noqa: PLR0911  one return per subcommand
     args_in = sys.argv[1:] if argv is None else argv
     if args_in[:1] == ["probe"]:
         from .probe import main as probe_main  # noqa: PLC0415
@@ -110,6 +132,8 @@ def main(argv: list[str] | None = None) -> int:
         from .onboard.cli import main as onboard_main  # noqa: PLC0415
 
         return onboard_main(args_in)
+    if args_in[:1] in (["fetch"], ["read"]):
+        return _stage(args_in)
     if args_in[:1] == ["collect"]:
         args_in = args_in[1:]
     ap = argparse.ArgumentParser(prog="sourcer", description=__doc__)
