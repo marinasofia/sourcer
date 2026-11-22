@@ -76,9 +76,15 @@ def source_node(state: State) -> State:
     progress.stage("fetch", status="done")
     progress.stage("triage", done=0, total=len(unsure))
     # the gates' set asides from every board, then the title check's, are written together
-    triaged_in = _triage(
-        state, unsure, postings, [d for r in results if isinstance(r, tuple) for d in r[4]]
-    )
+    gated = [d for r in results if isinstance(r, tuple) for d in r[4]]
+    if state.get("defer_triage"):
+        # the fetch stage of a split run (sourcer.stages): the title check needs the
+        # model, which the stage that browses never holds; the read stage does it
+        _write_drops(state, gated)
+        state["unsure"] = unsure
+        triaged_in = len(unsure)
+    else:
+        triaged_in = _triage(state, unsure, postings, gated)
     progress.stage("triage", done=len(unsure), status="done")
     prefiltered += len(unsure) - triaged_in
     stats["companies_covered"] = len(state["companies"]) - len(failures)

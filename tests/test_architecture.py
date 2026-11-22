@@ -99,6 +99,7 @@ LAYERS: dict[str, int] = {
     "probe": 3,
     "orchestrator": 3,
     "rescore": 3,
+    "stages": 3,
     "rescreen": 3,
     "restore": 3,
     "export": 3,
