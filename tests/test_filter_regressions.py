@@ -295,3 +295,26 @@ def test_a_government_title_quotes_the_posting_s_own_clearance_line() -> None:
     assert code == "citizenship_required" and quote.startswith(
         "the title names a US government team"
     )
+
+
+def test_an_internship_that_will_not_sponsor_is_still_open_to_a_student_visa() -> None:
+    """Nov 22 2026: Altice USA's winter internship was dropped for "will not provide
+    current or future sponsorship"; a student visa covers an internship (CPT). Only a
+    line that names student visa holders as not eligible bars one."""
+    text = (
+        "Intern, Business Enablement. "
+        "The Company will not provide current or future sponsorship for this role."
+    )
+    intern = {
+        "title": "Business Enablement Intern",
+        "employment_type": "intern",
+        "description": text,
+    }
+    full = {**intern, "title": "Business Analyst", "employment_type": "full time"}
+    assert eligibility._rule_eligibility(intern, ON_OPT) is None
+    assert eligibility._rule_eligibility(full, ON_OPT) is not None
+    barred = {
+        **intern,
+        "description": "F-1 visa holders will not be considered for this internship.",
+    }
+    assert eligibility._rule_eligibility(barred, ON_OPT) is not None
