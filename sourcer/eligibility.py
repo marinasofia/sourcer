@@ -269,7 +269,9 @@ def _full_time(parsed: Posting) -> bool:
 def _rule_eligibility(parsed: Posting, profile: Profile | None) -> Verdict | None:
     """Read mandatory eligibility from the original text, never the model summary."""
     description = str(parsed.get("description") or "")
-    found = config.eligibility_evidence(description, profile, str(parsed.get("title") or ""))
+    found = config.eligibility_evidence(
+        description, profile, str(parsed.get("title") or ""), internship=not _full_time(parsed)
+    )
     if found:
         return _no(found[0], f'{found[0]}: "{found[1]}"', found[1])
     if (profile or {}).get("full_time_needs_future_sponsorship") is True and _full_time(parsed):

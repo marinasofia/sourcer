@@ -478,10 +478,13 @@ GOVERNMENT_TRACK_RE = re.compile(r"\b(?:U\.?S\.? Government|USG)\b", re.I)
 
 
 def eligibility_evidence(  # noqa: PLR0911  one return per kind of bar reads clearest
-    description: str, profile: dict[str, Any] | None, title: str = ""
+    description: str, profile: dict[str, Any] | None, title: str = "", internship: bool = False
 ) -> tuple[str, str] | None:
     """(reason code, the posting's own words that triggered it), else None.
-    The quote goes into the trace, so every drop can be checked by eye."""
+    The quote goes into the trace, so every drop can be checked by eye.
+    ``internship``: a line declining sponsorship now or later does not bar an
+    internship, which a student visa covers (CPT); only a line that names
+    student visa holders as not eligible does."""
     not_citizen = (profile or {}).get("us_citizen") is False or (profile or {}).get(
         "needs_sponsorship"
     ) is True
@@ -502,7 +505,8 @@ def eligibility_evidence(  # noqa: PLR0911  one return per kind of bar reads cle
             barred = _STUDENT_VISA_EXPLICIT_RE.search(description or "")
         # needing sponsorship now, any "no sponsorship" line is the rule (below)
         future = (
-            (profile or {}).get("needs_sponsorship") is not True
+            not internship
+            and (profile or {}).get("needs_sponsorship") is not True
             and not welcomes_opt(description or "")
             and future_sponsorship_bar(description or "")
         )
