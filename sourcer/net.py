@@ -14,7 +14,13 @@ import requests
 from requests.adapters import HTTPAdapter
 from urllib3.connection import HTTPSConnection
 from urllib3.connectionpool import HTTPSConnectionPool
-from urllib3.exceptions import NewConnectionError
+from urllib3.exceptions import (
+    DecodeError,
+    NewConnectionError,
+    ProtocolError,
+    ReadTimeoutError,
+    SSLError,
+)
 
 Resolver = Callable[..., list[tuple[Any, ...]]]
 REDIRECT_STATUSES = {301, 302, 303, 307, 308}
@@ -265,7 +271,22 @@ def _chunks(response: requests.Response) -> Iterator[bytes]:
         yield from response.iter_content(64 * 1024)
         return
     while True:
-        chunk = read1(64 * 1024, decode_content=True)
+        # read1 bypasses requests' own wrapping (iter_content), so a connection
+        # dropped mid body raised a raw urllib3 error no caller catches (Nov 20
+        # 2026: one reset by peer in the website backfill failed all of discover).
+        # Wrapped here as requests does, every caller's RequestException sees it.
+        try:
+            chunk = read1(64 * 1024, decode_content=True)
+        except ProtocolError as e:
+            raise requests.exceptions.ChunkedEncodingError(e) from e
+        except DecodeError as e:
+            raise requests.exceptions.ContentDecodingError(e) from e
+        except ReadTimeoutError as e:
+            raise requests.exceptions.ConnectionError(e) from e
+        except SSLError as e:
+            raise requests.exceptions.SSLError(e) from e
+        except OSError as e:  # a socket error that reached us unwrapped
+            raise requests.exceptions.ConnectionError(e) from e
         if not chunk:
             return
         yield chunk

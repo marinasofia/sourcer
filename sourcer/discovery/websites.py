@@ -12,6 +12,7 @@ replaced.
 from __future__ import annotations
 
 import json
+import logging
 import re
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -26,6 +27,8 @@ from bs4 import BeautifulSoup
 from .. import db
 from ..net import SafeSession
 from ..probe import RateLimiter, Requester, Response
+
+log = logging.getLogger(__name__)
 
 # a company with no website found is tried again after RETRY_DAYS, at most MAX_ATTEMPTS times
 RETRY_DAYS = 30
@@ -308,7 +311,13 @@ def backfill_domains(
     def one(row: dict[str, Any]) -> WebsiteResult | None:
         if deadline is not None and clock() >= deadline:
             return None
-        return find_website(row, client, throttle)
+        try:
+            return find_website(row, client, throttle)
+        except Exception as e:
+            log.warning(
+                "website lookup failed for %s: %s: %s", row.get("name"), type(e).__name__, e
+            )
+            return None
 
     results = []
     with ThreadPoolExecutor(max_workers=max(1, workers)) as pool:
