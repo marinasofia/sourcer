@@ -86,7 +86,7 @@ def test_listing_selection_skips_senior_and_offsite_titles(
     listing("AI Intern", "London, UK")
     titles = [r["title"] for r in score_listings.select_rows(tmp_db, 10)]
     # the fixtures start in summer 2027, so a West Coast internship is in scope; London is not.
-    # Which titles she wants is the title check's call, so Marketing stays in.
+    # Which titles the candidate wants is the title check's call, so Marketing stays in.
     assert sorted(titles) == ["Data Science Intern", "ML Intern (West Coast)", "Marketing Intern"]
 
 

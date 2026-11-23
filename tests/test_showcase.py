@@ -160,7 +160,7 @@ def test_gap_words_hidden_with_look_alikes_never_survive():
     posts = build_postings(
         [
             _row(
-                rationale="Core fit, covers 2 of 2 must haves. She la\u0441ks Kubernetes, has "
+                rationale="Core fit, covers 2 of 2 must haves. It la\u0441ks Kubernetes, has "
                 "n\u200bo experience with Go, falls short on Rust, without SQL."
             )
         ],

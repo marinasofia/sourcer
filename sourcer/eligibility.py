@@ -239,7 +239,7 @@ def _rule_internship_before_availability(
 ) -> Verdict | None:
     """An internship that starts, by its own start date or title, before the
     profile's ``earliest_start_internship`` (YYYY-MM): a winter or spring term
-    she cannot take while in school. Unstated dates stay eligible."""
+    the candidate cannot take while in school. Unstated dates stay eligible."""
     available = (profile or {}).get("earliest_start_internship")
     if not available or config.is_full_time(dict(parsed)):
         return None

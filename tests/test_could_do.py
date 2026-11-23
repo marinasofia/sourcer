@@ -1,4 +1,4 @@
-"""Could do: a job she could do well is not lost when her facts match it only loosely."""
+"""Could do: a job the candidate could do well is not lost when the facts match it only loosely."""
 
 from typing import Any
 
@@ -43,7 +43,7 @@ def test_maybe_or_no_and_a_stronger_score_are_left_alone() -> None:
 
 
 def test_avoided_work_stays_low_after_the_lift() -> None:
-    """The edge checks still weigh the work she wants and avoids (edge 0 here)."""
+    """The edge checks still weigh the work the candidate wants and avoids (edge 0 here)."""
     out = llm.score_from_checks(
         checks(
             could_do="yes",
