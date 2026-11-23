@@ -152,7 +152,7 @@ def screen(p: Posting, entry: dict[str, Any], profile: dict[str, Any] | None = N
         return failed
     p["company"] = entry["company"]
     # Every title goes to the cheap batched title check, which reads it against
-    # the work she wants in her own words: no list of role names to go stale
+    # the work the candidate wants, in their own words: no list of role names to go stale
     # (senior titles were already dropped above as above entry level).
     return "title_unsure"
 

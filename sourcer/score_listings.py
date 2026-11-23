@@ -313,9 +313,9 @@ def finish(
     return apply_parsed(conn, row, parsed, profile, looked["text"])
 
 
-# Listings the title check has not judged yet. A title she does not want is
+# Listings the title check has not judged yet. A title the candidate does not want is
 # archived under the rescreen note, so ``rescreen --undo`` brings it back.
-TITLE_NOTE = "auto-archived: rescreen: title check: not the work she wants"
+TITLE_NOTE = "auto-archived: rescreen: title check: not the work the candidate wants"
 UNCHECKED = (
     "SELECT id, title FROM postings p WHERE source='simplify' AND status='new' "
     "AND excluded=0 AND score IS NULL AND NOT EXISTS (SELECT 1 FROM posting_events e "
@@ -324,7 +324,7 @@ UNCHECKED = (
 
 
 def check_titles(conn: db.Connection, client: anthropic.Anthropic, usage: llm.Usage) -> int:
-    """Run the profile's title check over listings not yet judged, in her
+    """Run the profile's title check over listings not yet judged, in the candidate's
     words rather than a list of role names. Returns how many were archived."""
     trace.ensure(conn)
     rows = conn.execute(UNCHECKED).fetchall()

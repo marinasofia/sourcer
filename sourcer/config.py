@@ -939,7 +939,7 @@ def description_location_conflicts(description: str, wide: bool = False) -> bool
 
 def description_location_conflict(description: str, wide: bool = False) -> str | None:
     """The clause that requires working or living outside the target metros,
-    quoted for the trace, else None. With ``wide`` (a role she would move
+    quoted for the trace, else None. With ``wide`` (a role the candidate would move
     for) only a place outside the US conflicts."""
     outside = FOREIGN_RE if wide else _OUTSIDE_NYC_RE
     text = unescape(description).replace("\u2019", "'")
@@ -1253,7 +1253,7 @@ def _listed_window(text: str) -> tuple[tuple[int, int], tuple[int, int]] | None:
 
 
 def _standing(profile: dict[str, Any], today: date) -> int:
-    """Her class now: 0 freshman to 3 senior, from the year she graduates."""
+    """The candidate's class now: 0 freshman to 3 senior, from the graduation year."""
     year_ends = today.year + (1 if today.month >= 6 else 0)  # the spring this school year ends
     return max(0, min(3, 3 - (int(profile["grad_year"]) - year_ends)))
 
@@ -1263,8 +1263,8 @@ def outside_graduation_window(
 ) -> str | None:
     """Reason when the posting's graduation rules leave the candidate out:
     a stated range or list of graduation dates, a class standing ("current
-    juniors or sophomores"), or a rule that she return to school after the
-    internship when she graduates before it ends."""
+    juniors or sophomores"), or a rule to return to school after the
+    internship when the candidate graduates before it ends."""
     if not profile or not profile.get("grad_year"):
         return None
     grad = (int(profile["grad_year"]), int(profile.get("grad_month") or 5))
@@ -1292,7 +1292,7 @@ def _window_reason(text: str, grad: tuple[int, int], you: str) -> str | None:
 
 
 def _standing_reason(text: str, mine: int, you: str) -> str | None:
-    """ "current juniors or sophomores" when she is a senior, and the like."""
+    """ "current juniors or sophomores" when the candidate is a senior, and the like."""
     for m in _STANDING_RE.finditer(text or ""):
         words = r"(current|rising)?\s*(freshm|sophomore|junior|senior)"
         named = re.findall(words, m.group(0), re.I)

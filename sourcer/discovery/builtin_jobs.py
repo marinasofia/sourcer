@@ -6,7 +6,7 @@ forbids searching, filters, and deeper paging. Its apply button needs a login,
 so it never reveals the employer's board. A lead is therefore confirmed the
 long way round:
 
-1. read the listings for the role families she wants; each job card already
+1. read the listings for the role families the candidate wants; each job card already
    names the role, the employer, and the employer's Built In page, so job
    pages are never opened;
 2. find the employer's board: the watchlist first, else the website on the
@@ -28,7 +28,7 @@ from typing import Any
 from urllib.parse import urlparse
 
 BASE = "https://www.builtinnyc.com"
-# her role families first, then internship and entry level, then the AI
+# the candidate's role families first, then internship and entry level, then the AI
 # industry list (every role at AI companies, there to find new employers)
 LISTINGS = (
     "dev-engineering",
