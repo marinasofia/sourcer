@@ -126,6 +126,10 @@ RUN_MINUTES = float(os.environ.get("SOURCER_RUN_MINUTES", "inf"))
 # Community listings scored per run after collection, inside the same cost cap.
 LISTING_SCORE_LIMIT = int(os.environ.get("SOURCER_LISTING_SCORE_LIMIT", "10"))
 MAX_DESCRIPTION_CHARS = 8000  # truncate very long postings before sending to the LLM
+# Posting text is stored whole: preferred qualifications often sit past the first 8,000
+# characters, and a fifth of stored postings were cut there. This cap only guards against
+# a runaway page.
+MAX_STORED_CHARS = 60000
 
 # Pre-filter applied in the source node so we only pay LLM cost for postings
 # that are plausibly in scope. Title must look like a target role AND the

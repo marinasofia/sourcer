@@ -8,7 +8,7 @@ from unittest.mock import patch
 import pytest
 import requests
 
-from sourcer import config, sources
+from sourcer import config, llm, sources
 from tests.conftest import FROZEN_NOW
 
 
@@ -110,12 +110,31 @@ def test_iso_from_ms() -> None:
     assert sources.iso_from_ms(1787000000000) == "2026-08-17"
 
 
-def test_clean_html_truncates_and_drops_blank_lines() -> None:
+def test_clean_html_keeps_the_whole_posting_and_drops_blank_lines() -> None:
+    """Preferred qualifications often sit past the scorer's cut: the stored text keeps them."""
     html = "<p>a</p>\n\n<p>  </p><p>" + "x" * (config.MAX_DESCRIPTION_CHARS + 50) + "</p>"
     out = sources.clean_html(html)
     assert out.startswith("a\nx")
-    assert len(out) == config.MAX_DESCRIPTION_CHARS
+    assert len(out) == config.MAX_DESCRIPTION_CHARS + 52
+    runaway = "<p>" + "y" * (config.MAX_STORED_CHARS + 10) + "</p>"
+    assert len(sources.clean_html(runaway)) == config.MAX_STORED_CHARS
     assert sources.clean_html(None) == ""
+
+
+def test_the_scorer_still_reads_only_the_first_part() -> None:
+    turn = llm._posting_user_turn(
+        {
+            "company": "c",
+            "title": "t",
+            "location": "l",
+            "url": "u",
+            "description": "z" * (config.MAX_DESCRIPTION_CHARS + 500),
+        }
+    )
+    assert (
+        "z" * config.MAX_DESCRIPTION_CHARS in turn
+        and "z" * (config.MAX_DESCRIPTION_CHARS + 1) not in turn
+    )
 
 
 def test_term_is_current() -> None:

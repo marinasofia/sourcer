@@ -34,7 +34,7 @@ def safe_posting(posting: Posting) -> Posting:
 def clean_html(html: str | None) -> str:
     text = BeautifulSoup(html or "", "html.parser").get_text("\n")
     lines = [ln.strip() for ln in text.splitlines()]
-    return "\n".join(ln for ln in lines if ln)[: config.MAX_DESCRIPTION_CHARS]
+    return "\n".join(ln for ln in lines if ln)[: config.MAX_STORED_CHARS]
 
 
 def _get_json(url: str, timeout: int = config.REQUEST_TIMEOUT) -> Any:
