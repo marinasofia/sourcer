@@ -530,7 +530,7 @@ def _posting_user_turn(posting: dict[str, Any]) -> str:
     fields = (
         f"Company: {posting['company']}\nTitle: {posting['title']}\n"
         f"Location: {posting['location']}\nURL: {posting['url']}\n\n"
-        f"Posting text:\n{posting['description']}"
+        f"Posting text:\n{str(posting['description'] or '')[: config.MAX_DESCRIPTION_CHARS]}"
     )
     return f"{UNTRUSTED_NOTE}\n\n{untrusted(fields)}"
 
