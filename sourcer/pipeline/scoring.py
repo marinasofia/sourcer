@@ -353,7 +353,7 @@ def validate_input(posting_text: str, title: str, company: str) -> None:
         raise ValueError("posting_text must be a nonempty string")
     if not isinstance(title, str) or not isinstance(company, str):
         raise ValueError("title and company must be strings")
-    if len(posting_text) > config.MAX_DESCRIPTION_CHARS:
+    if len(posting_text) > config.MAX_POSTING_CHARS:
         raise ValueError("posting_text exceeds the configured character limit")
     if len(title) > MAX_TITLE_CHARS or len(company) > MAX_COMPANY_CHARS:
         raise ValueError(

@@ -47,7 +47,7 @@ def _detail(posting: Posting) -> Posting:
         return posting
     markdown = _get_text(posting["url"])
     apply = APPLY_RE.search(markdown)
-    posting["description"] = markdown[: config.MAX_STORED_CHARS]
+    posting["description"] = markdown
     if apply:
         posting["url"] = apply.group(1)
     return posting

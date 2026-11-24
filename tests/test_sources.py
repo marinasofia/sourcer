@@ -111,30 +111,24 @@ def test_iso_from_ms() -> None:
 
 
 def test_clean_html_keeps_the_whole_posting_and_drops_blank_lines() -> None:
-    """Preferred qualifications often sit past the scorer's cut: the stored text keeps them."""
-    html = "<p>a</p>\n\n<p>  </p><p>" + "x" * (config.MAX_DESCRIPTION_CHARS + 50) + "</p>"
+    """No posting is cut: whatever sits at the end (preferred qualifications) is kept."""
+    html = "<p>a</p>\n\n<p>  </p><p>" + "x" * 90_000 + "</p><p>Preferred: dbt</p>"
     out = sources.clean_html(html)
-    assert out.startswith("a\nx")
-    assert len(out) == config.MAX_DESCRIPTION_CHARS + 52
-    runaway = "<p>" + "y" * (config.MAX_STORED_CHARS + 10) + "</p>"
-    assert len(sources.clean_html(runaway)) == config.MAX_STORED_CHARS
+    assert out.startswith("a\nx") and out.endswith("Preferred: dbt")
     assert sources.clean_html(None) == ""
 
 
-def test_the_scorer_still_reads_only_the_first_part() -> None:
+def test_the_scorer_reads_the_whole_posting() -> None:
     turn = llm._posting_user_turn(
         {
             "company": "c",
             "title": "t",
             "location": "l",
             "url": "u",
-            "description": "z" * (config.MAX_DESCRIPTION_CHARS + 500),
+            "description": "z" * 30_000 + " Preferred: dbt",
         }
     )
-    assert (
-        "z" * config.MAX_DESCRIPTION_CHARS in turn
-        and "z" * (config.MAX_DESCRIPTION_CHARS + 1) not in turn
-    )
+    assert "Preferred: dbt" in turn
 
 
 def test_term_is_current() -> None:

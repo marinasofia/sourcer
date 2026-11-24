@@ -117,7 +117,7 @@ def test_model_response_joins_text_blocks_and_ignores_other_blocks():
         (1, "", ""),
         ("x", None, ""),
         ("x", "", []),
-        ("x" * (config.MAX_DESCRIPTION_CHARS + 1), "", ""),
+        ("x" * (config.MAX_POSTING_CHARS + 1), "", ""),
     ],
 )
 def test_invalid_service_inputs_fail_before_model(text, title, company, monkeypatch):

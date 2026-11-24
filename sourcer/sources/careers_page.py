@@ -15,7 +15,7 @@ from urllib.parse import urljoin, urlsplit
 import requests
 from bs4 import BeautifulSoup
 
-from .. import config, net
+from .. import net
 from ..net import validate_public_https_url
 from ._common import Posting, clean_html
 
@@ -177,7 +177,7 @@ def parse_rendered_page(html: str, page_url: str) -> list[Posting]:
                 "title": title,
                 "location": text.replace(title, "", 1).strip()[:200],
                 "url": href,
-                "description": text[: config.MAX_STORED_CHARS],
+                "description": text,
                 "posted_at": date_match.group(1) if date_match else None,
             }
         )

@@ -125,11 +125,11 @@ COST_CAP_USD = float(os.environ.get("SOURCER_COST_CAP", "2.50"))
 RUN_MINUTES = float(os.environ.get("SOURCER_RUN_MINUTES", "inf"))
 # Community listings scored per run after collection, inside the same cost cap.
 LISTING_SCORE_LIMIT = int(os.environ.get("SOURCER_LISTING_SCORE_LIMIT", "10"))
-MAX_DESCRIPTION_CHARS = 8000  # truncate very long postings before sending to the LLM
-# Posting text is stored whole: preferred qualifications often sit past the first 8,000
-# characters, and a fifth of stored postings were cut there. This cap only guards against
-# a runaway page.
-MAX_STORED_CHARS = 60000
+# Posting text is never cut: every posting is laid out differently, and a cut drops whatever
+# sits past it (preferred qualifications, eligibility lines). The scoring service refuses a
+# request longer than this, since no single posting runs that long; inside a run a page too
+# long for the model fails its read and is set aside whole, never read in part.
+MAX_POSTING_CHARS = 200_000
 
 # Pre-filter applied in the source node so we only pay LLM cost for postings
 # that are plausibly in scope. Title must look like a target role AND the
@@ -835,7 +835,7 @@ def undated_intern(posting: dict[str, Any], today: date | None = None) -> bool:
     if is_full_time(posting) or (today or date.today()) >= date(WIDE_YEAR, 6, 1):
         return False
     head = " ".join(str(posting.get(k) or "") for k in ("title", "start_date"))
-    text = str(posting.get("description") or "")[:8000]
+    text = str(posting.get("description") or "")
     other_year = any(int(m.group(3)) != WIDE_YEAR for m in TERM_RE.finditer(text))
     return not (_OTHER_TERM_RE.search(head) or _OFF_SUMMER_DATES_RE.search(text) or other_year)
 
@@ -861,14 +861,14 @@ def is_grad_program(posting: dict[str, Any]) -> bool:
     """A multi month program for new or recent graduates, by title or text."""
     if _PROGRAM_TITLE_RE.search(str(posting.get("title") or "")):
         return True
-    return bool(_PROGRAM_TEXT_RE.search(str(posting.get("description") or "")[:8000]))
+    return bool(_PROGRAM_TEXT_RE.search(str(posting.get("description") or "")))
 
 
 def names_target_start(posting: dict[str, Any]) -> bool:
     """The posting itself names a summer 2027 start or 2027 graduates, in its
     title, start date or text. No profile setting widens it."""
     text = " ".join(str(posting.get(k) or "") for k in ("title", "start_date"))
-    description = str(posting.get("description") or "")[:8000]
+    description = str(posting.get("description") or "")
     return bool(_WIDE_START_RE.search(text) or _WIDE_START_RE.search(description))
 
 
