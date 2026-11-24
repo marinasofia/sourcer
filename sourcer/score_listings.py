@@ -95,7 +95,7 @@ def _fetch_ashby(org: str, job_id: str) -> Fetched:
             text = _plain_text(j.get("descriptionPlain") or j.get("descriptionHtml") or "")
             if len(text) < MIN_DESCRIPTION_CHARS:
                 return None, "ashby description too short"
-            return text[: config.MAX_STORED_CHARS], None
+            return text, None
     return None, "not on the ashby board (likely closed)"
 
 
@@ -128,7 +128,7 @@ def _fetch_oracle(m: re.Match[str]) -> Fetched:
 def _long_enough(text: str, where: str) -> Fetched:
     if len(text) < MIN_DESCRIPTION_CHARS:
         return None, f"{where} description too short"
-    return text[: config.MAX_STORED_CHARS], None
+    return text, None
 
 
 def fetch_description(url: str) -> Fetched:
@@ -150,7 +150,7 @@ def fetch_description(url: str) -> Fetched:
     text = _plain_text(resp.text)
     if len(text) < MIN_DESCRIPTION_CHARS:
         return None, "page not readable"
-    return text[: config.MAX_STORED_CHARS], None
+    return text, None
 
 
 TWIN_COLUMNS = (
